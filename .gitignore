@@ -1,0 +1,8 @@
+*.o
+*.obj
+attempts*
+Debug*
+good_backup_point*
+mylist.dat
+*.vcxproj*
+main.cpp
