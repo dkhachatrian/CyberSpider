@@ -90,7 +90,7 @@ bool DiskList::push_front(const char* data)
 
 								  // so let's see if we can skip the while loop!
 
-	if (m_file.read(temp, unusedBytes, 0))
+	if (unusedBytes > 0)
 	{
 		bool canSkipLoop = true;
 		for (int k = 0; k < unusedBytes; k++)
