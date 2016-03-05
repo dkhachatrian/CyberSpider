@@ -23,12 +23,18 @@ bool DiskList::push_front(const char* data)
 		return false;
 	}
 
+	if (m_file.fileLength() == 0)
+	{
+		m_file.write(data, strlen(data) + 1, 0);
+		return true;
+	}
+
 	char temp[MAX_STR_LENGTH + 1];
 
 
 	//copy over everything toward the front to make space for new entry
 	//will do the copying in chunks, first of MAX_STR_LENGTH + 1, then of what's left
-	
+
 	if ((strlen(data) + 1) > unusedBytes) //then we have to shove things over to make space for it
 	{
 		int i = m_file.fileLength(); //original file length
@@ -52,7 +58,7 @@ bool DiskList::push_front(const char* data)
 
 
 
-										  //now we can finally insert our new data at the front!
+									  //now we can finally insert our new data at the front!
 		m_file.write(data, strlen(data) + 1, 0); //adds str + vanguard
 
 												 //and we're done!
@@ -76,20 +82,20 @@ bool DiskList::push_front(const char* data)
 	int shift = strlen(data) + 1; //str + nullbyte
 
 
-	// If we have previously push_front'd a Node that could fit in (unusedBytes_old) bytes,
-	// we will have put all of the nullbytes at the front of our document.
-	// Because of this upkeep requirement,
-	// and because (I'm assuming that) nullbytes can't be contained in a node
-	// this means we can skip the while loop if the first (unusedBytes) of the file are nullbytes
+								  // If we have previously push_front'd a Node that could fit in (unusedBytes_old) bytes,
+								  // we will have put all of the nullbytes at the front of our document.
+								  // Because of this upkeep requirement,
+								  // and because (I'm assuming that) nullbytes can't be contained in a node
+								  // this means we can skip the while loop if the first (unusedBytes) of the file are nullbytes
 
-	// so let's see if we can skip the while loop!
+								  // so let's see if we can skip the while loop!
 
 	if (m_file.read(temp, unusedBytes, 0))
 	{
 		bool canSkipLoop = true;
 		for (int k = 0; k < unusedBytes; k++)
 		{
-			if (temp[k] != '\0') 
+			if (temp[k] != '\0')
 			{
 				canSkipLoop = false;
 				break;
@@ -123,7 +129,7 @@ bool DiskList::push_front(const char* data)
 	}
 
 
-	while ((i-numZeros-totalShifted) >= 0)
+	while ((i - numZeros - totalShifted) >= 0)
 	{
 		if (!m_file.read(ch, i - numZeros)) //should never be the case
 			break;
@@ -173,14 +179,14 @@ bool DiskList::push_front(const char* data)
 				if (strlen(temp) != 0) //if I'm not just shifting over nullbytes
 					m_file.write(temp, j - totalShifted - shift, totalShifted + shift); //shift the remaining chunk of data over
 
-				// should have shifted everything to the right correctly
+																						// should have shifted everything to the right correctly
 
 				totalShifted += shift; // keep track of how many unused bytes we've shifted
-					// (so we don't recopy the front of the file, to be overwritten, repeatedly)
+									   // (so we don't recopy the front of the file, to be overwritten, repeatedly)
 
-				// we have moved the front of the file over to where i is at the moment
-				// so (i-numZeros) hasn't checked the bytes just to the left of it
-				// so DON'T change i
+									   // we have moved the front of the file over to where i is at the moment
+									   // so (i-numZeros) hasn't checked the bytes just to the left of it
+									   // so DON'T change i
 
 				numZeros = 0; //reset numZeros counter
 				continue; //and keep going
@@ -284,4 +290,3 @@ void DiskList::printAll()
 	return;
 
 }
-
