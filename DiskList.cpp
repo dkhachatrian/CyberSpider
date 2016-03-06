@@ -25,7 +25,8 @@ bool DiskList::push_front(const char* data)
 
 	if (m_file.fileLength() == 0)
 	{
-		m_file.write(data, strlen(data) + 1, 0);
+		if (!m_file.write(data, strlen(data) + 1, 0))
+			return false;
 		return true;
 	}
 
@@ -42,9 +43,11 @@ bool DiskList::push_front(const char* data)
 
 		while (i > (MAX_STR_LENGTH + 1))
 		{
-			m_file.read(temp, MAX_STR_LENGTH + 1, i - (MAX_STR_LENGTH + 1) - 1); //get last chunk of data
+			if (!m_file.read(temp, MAX_STR_LENGTH + 1, i - (MAX_STR_LENGTH + 1) - 1))
+				return false; //get last chunk of data
 
-			m_file.write(temp, MAX_STR_LENGTH + 1, i - (MAX_STR_LENGTH + 1) - 1 + shift);
+			if (!m_file.write(temp, MAX_STR_LENGTH + 1, i - (MAX_STR_LENGTH + 1) - 1 + shift))
+				return false;
 			//write it strlen(data) over to the right to make space for data at the front
 
 			i -= (MAX_STR_LENGTH + 1);
@@ -53,13 +56,16 @@ bool DiskList::push_front(const char* data)
 
 		//now i <= MAX_STR_LENGTH + 1
 
-		m_file.read(temp, i, 0); //get remaining chunk of data at front of file
-		m_file.write(temp, i, shift); //shift it over
+		if (!m_file.read(temp, i, 0))
+			return false; //get remaining chunk of data at front of file
+		if (!m_file.write(temp, i, shift))
+			return false; //shift it over
 
 
 
 									  //now we can finally insert our new data at the front!
-		m_file.write(data, strlen(data) + 1, 0); //adds str + vanguard
+		if (!m_file.write(data, strlen(data) + 1, 0))
+			return false; //adds str + vanguard
 
 												 //and we're done!
 
@@ -90,9 +96,10 @@ bool DiskList::push_front(const char* data)
 
 								  // so let's see if we can skip the while loop!
 
-	if (unusedBytes > 0)
+	if (unusedBytes > 0 && m_file.read(temp, unusedBytes, 0))
 	{
 		bool canSkipLoop = true;
+		
 		for (int k = 0; k < unusedBytes; k++)
 		{
 			if (temp[k] != '\0')
@@ -106,7 +113,8 @@ bool DiskList::push_front(const char* data)
 
 		if (canSkipLoop)
 		{
-			m_file.write(data, strlen(data) + 1, unusedBytes - (strlen(data) + 1));
+			if (!m_file.write(data, strlen(data) + 1, unusedBytes - (strlen(data) + 1)))
+				return false;
 			//shifted just enough to copy over data + nullbyte
 			//let's update unusedBytes
 			unusedBytes -= (strlen(data) + 1);
@@ -132,7 +140,7 @@ bool DiskList::push_front(const char* data)
 	while ((i - numZeros - totalShifted) >= 0)
 	{
 		if (!m_file.read(ch, i - numZeros)) //should never be the case
-			break;
+			return false;
 
 		if (ch == '\0')
 		{
@@ -164,9 +172,11 @@ bool DiskList::push_front(const char* data)
 
 				while (j > (MAX_STR_LENGTH + 1))
 				{
-					m_file.read(temp, MAX_STR_LENGTH + 1, j - (MAX_STR_LENGTH + 1) - 1); //get last chunk of data
+					if (!m_file.read(temp, MAX_STR_LENGTH + 1, j - (MAX_STR_LENGTH + 1) - 1))
+						return false; //get last chunk of data
 
-					m_file.write(temp, MAX_STR_LENGTH + 1, j - (MAX_STR_LENGTH + 1) - 1 + shift);
+					if (!m_file.write(temp, MAX_STR_LENGTH + 1, j - (MAX_STR_LENGTH + 1) - 1 + shift))
+						return false;
 					//write it strlen(data) over to the right to make space for data at the front
 
 					j -= (MAX_STR_LENGTH + 1);
@@ -175,9 +185,11 @@ bool DiskList::push_front(const char* data)
 
 				//now j <= MAX_STR_LENGTH + 1
 
-				m_file.read(temp, j - totalShifted - shift, totalShifted); //get remaining chunk of data at front of file (except junk already shifted at front)
+				if (!m_file.read(temp, j - totalShifted - shift, totalShifted))
+					return false; //get remaining chunk of data at front of file (except junk already shifted at front)
 				if (strlen(temp) != 0) //if I'm not just shifting over nullbytes
-					m_file.write(temp, j - totalShifted - shift, totalShifted + shift); //shift the remaining chunk of data over
+					if (!m_file.write(temp, j - totalShifted - shift, totalShifted + shift))
+						return false; //shift the remaining chunk of data over
 
 																						// should have shifted everything to the right correctly
 
@@ -200,7 +212,8 @@ bool DiskList::push_front(const char* data)
 	//		(as we've already copied it over to the right)
 	// let's overwrite some of the junk with our useful data
 
-	m_file.write(data, strlen(data) + 1, unusedBytes - (strlen(data) + 1));
+	if (!m_file.write(data, strlen(data) + 1, unusedBytes - (strlen(data) + 1)))
+		exit(1);
 	//shifted just enough to copy over data + nullbyte
 	//let's update unusedBytes
 	unusedBytes -= (strlen(data) + 1);
