@@ -4,6 +4,8 @@
 #include <string>
 #include "MultiMapTuple.h"
 
+const int MAX_NODE_SIZE = 120; //NOT including nullbyte
+
 class DiskMultiMap
 {
 public:
@@ -12,12 +14,14 @@ public:
 	{
 	public:
 		Iterator();
+		Iterator(BinaryFile::Offset startLoc, BinaryFile& hash);
 		// You may add additional constructors
 		bool isValid() const;
 		Iterator& operator++();
 		MultiMapTuple operator*();
 
 	private:
+		bool m_valid;
 		// Your private member declarations will go here
 	};
 
@@ -31,6 +35,7 @@ public:
 	int erase(const std::string& key, const std::string& value, const std::string& context);
 
 private:
+	BinaryFile m_hash;
 	// Your private member declarations will go here
 };
 

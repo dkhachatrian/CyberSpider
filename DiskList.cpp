@@ -3,20 +3,22 @@
 //#include <cstring>
 
 const int MAX_STR_LENGTH = 255;
+const int UNUSED_BUFFER = 255;
 
 DiskList::DiskList(const std::string& filename)
 {
 	m_file.createNew(filename);
-	unusedBytes = 0;
+
+	//will write in the initial number of unused byte location offset
+	m_file.write(0, 0); //initial unused byte offset
+	m_file.write(0, sizeof(int)); //initial locations of items, in order
+
+	//unusedBytes = 0;
 }
 
 
 bool DiskList::push_front(const char* data)
 {
-
-
-
-
 
 	if (strlen(data) > MAX_STR_LENGTH) //strlen does NOT include +1 for nullbyte
 	{
@@ -30,208 +32,77 @@ bool DiskList::push_front(const char* data)
 		return true;
 	}
 
-	char temp[MAX_STR_LENGTH + 1];
+	int unusedByteOffset = getUnusedByteOffset();
 
+	char n[sizeof(int) + 1];
 
-	//copy over everything toward the front to make space for new entry
-	//will do the copying in chunks, first of MAX_STR_LENGTH + 1, then of what's left
+	int spaceSize;
+	int spaceLoc;
 
-	if ((strlen(data) + 1) > unusedBytes) //then we have to shove things over to make space for it
+	int k = m_file.fileLength();
+
+	
+	// pairs of numbers were written in order (location, size)
+	// so going from backwards, I first get size, then I get location
+	while (k > unusedByteOffset)
 	{
-		int i = m_file.fileLength(); //original file length
-		int shift = strlen(data) + 1;
+		k -= sizeof(int);
+		// size
+		if (!m_file.read(n, k, sizeof(int)))
+			return false;
+		n[sizeof(int)] = '\0'; //building the int
+		spaceSize = atoi(n);
 
-		while (i > (MAX_STR_LENGTH + 1))
+		k -= sizeof(int); //move to location
+
+		if (spaceSize < strlen(data) + 1) //but if we can't fit it here
 		{
-			if (!m_file.read(temp, MAX_STR_LENGTH + 1, i - (MAX_STR_LENGTH + 1) - 1))
-				return false; //get last chunk of data
-
-			if (!m_file.write(temp, MAX_STR_LENGTH + 1, i - (MAX_STR_LENGTH + 1) - 1 + shift))
-				return false;
-			//write it strlen(data) over to the right to make space for data at the front
-
-			i -= (MAX_STR_LENGTH + 1);
-			//move back another temp string length	
+			//skip location of this too-small gap
+			continue;
 		}
 
-		//now i <= MAX_STR_LENGTH + 1
+		//otherwise, we found a good enough gap!
 
-		if (!m_file.read(temp, i, 0))
-			return false; //get remaining chunk of data at front of file
-		if (!m_file.write(temp, i, shift))
-			return false; //shift it over
+		//location
+		if (!m_file.read(n, k, sizeof(int)))
+			return false;
+		n[sizeof(int)] = '\0'; //building the int
+		spaceLoc = atoi(n);
 
+		if (!m_file.write(data, strlen(data) + 1, spaceLoc)) //write it in
+			break;
+		// note that that spot is no longer empty
+		for (int i = 0; i < 2 * sizeof(int); i++)
+			m_file.write('\0', k + i); //will do this by setting nullbytes
 
-
-									  //now we can finally insert our new data at the front!
-		if (!m_file.write(data, strlen(data) + 1, 0))
-			return false; //adds str + vanguard
-
-												 //and we're done!
-
-												 //printAll();
-
+		//and we're good!
 		return true;
 	}
 
 
-	//otherwise, we have enough leftover space to make space at the front
-
-	//so we'll shift things to the back as we encounter unused space
-
-	int i = m_file.fileLength() - 1; //start at last char of file
-	int j = 0;
-	char ch = ' ';
-	int totalShifted = 0;
-	//int targetZeros = strlen(data) + 1;
-	int numZeros = 0;
-	int shift = strlen(data) + 1; //str + nullbyte
 
 
-								  // If we have previously push_front'd a Node that could fit in (unusedBytes_old) bytes,
-								  // we will have put all of the nullbytes at the front of our document.
-								  // Because of this upkeep requirement,
-								  // and because (I'm assuming that) nullbytes can't be contained in a node
-								  // this means we can skip the while loop if the first (unusedBytes) of the file are nullbytes
+	//otherwise, we need to shift things over by extraBytesNeeded to make space in the front
 
-								  // so let's see if we can skip the while loop!
 
-	if (unusedBytes > 0 && m_file.read(temp, unusedBytes, 0))
+	char temp[MAX_STR_LENGTH + 1];
+
+	char ch;
+	shift = extraBytesNeeded;
+
+	for (int i = m_file.fileLength() - 1; i >= (sizeof(int) + unusedBytes); i--)
 	{
-		bool canSkipLoop = true;
-		
-		for (int k = 0; k < unusedBytes; k++)
-		{
-			if (temp[k] != '\0')
-			{
-				canSkipLoop = false;
-				break;
-			}
-			//otherwise, we've found an unused byte, so we can add it to our totalShifted
-			totalShifted++;
-		}
-
-		if (canSkipLoop)
-		{
-			if (!m_file.write(data, strlen(data) + 1, unusedBytes - (strlen(data) + 1)))
-				return false;
-			//shifted just enough to copy over data + nullbyte
-			//let's update unusedBytes
-			unusedBytes -= (strlen(data) + 1);
-
-			//and let's put our nullbytes at the front (unusedBytes) bytes of data
-			// (since we've 'defragmented' the rest of the file)
-
-			for (int k = 0; k < unusedBytes; k++)
-				m_file.write('\0', k);
-
-			// because of this upkeep requirement,
-			// and because (I'm assuming that) nullbytes can't be contained in a node
-			// this means we can skip the while loop if the first (unusedBytes) of the file are nullbytes
-
-
-			return true;
-		}
-
-		//otherwise, we get out of if condition body and enter while loop
-	}
-
-
-	while ((i - numZeros - totalShifted) >= 0)
-	{
-		if (!m_file.read(ch, i - numZeros)) //should never be the case
+		if (!m_file.read(ch, i))
 			return false;
-
-		if (ch == '\0')
-		{
-			numZeros++;
-			continue;
-		}
-
-		else if (ch != '\0')
-		{
-			if (numZeros == 0) //mid-Node
-			{
-				i--; //keep shifting
-				continue;
-			}
-
-			if (numZeros == 1) //just saw vanguard of Node. No shifting
-			{
-				//essentially, I "shift" all the bytes on the left to the right by (numZeros - 1), i.e., zero
-				i -= numZeros;
-				numZeros = 0;
-				continue;
-			}
-			else if (numZeros > 1)
-			{
-				//shift everything to the right by (numZeros - 1)
-				shift = numZeros - 1;
-				j = i;
-				//copypasta from unusedBytes condition body, with j's instead of i's
-
-				while (j > (MAX_STR_LENGTH + 1))
-				{
-					if (!m_file.read(temp, MAX_STR_LENGTH + 1, j - (MAX_STR_LENGTH + 1) - 1))
-						return false; //get last chunk of data
-
-					if (!m_file.write(temp, MAX_STR_LENGTH + 1, j - (MAX_STR_LENGTH + 1) - 1 + shift))
-						return false;
-					//write it strlen(data) over to the right to make space for data at the front
-
-					j -= (MAX_STR_LENGTH + 1);
-					//move back another temp string length	
-				}
-
-				//now j <= MAX_STR_LENGTH + 1
-
-				if (!m_file.read(temp, j - totalShifted - shift, totalShifted))
-					return false; //get remaining chunk of data at front of file (except junk already shifted at front)
-				if (strlen(temp) != 0) //if I'm not just shifting over nullbytes
-					if (!m_file.write(temp, j - totalShifted - shift, totalShifted + shift))
-						return false; //shift the remaining chunk of data over
-
-																						// should have shifted everything to the right correctly
-
-				totalShifted += shift; // keep track of how many unused bytes we've shifted
-									   // (so we don't recopy the front of the file, to be overwritten, repeatedly)
-
-									   // we have moved the front of the file over to where i is at the moment
-									   // so (i-numZeros) hasn't checked the bytes just to the left of it
-									   // so DON'T change i
-
-				numZeros = 0; //reset numZeros counter
-				continue; //and keep going
-
-
-			}
-		}
+		if (!m_file.write(ch, i + shift))
+			return false;
 	}
+	//now there's just enough space, after my initial int, to write in my int
+	if (!m_file.write(data, strlen(data) + 1, sizeof(int)))
+		return false;
 
-	// by now, shoved over things. First (unusedBytes) bytes of data is junk and unnecessary
-	//		(as we've already copied it over to the right)
-	// let's overwrite some of the junk with our useful data
-
-	if (!m_file.write(data, strlen(data) + 1, unusedBytes - (strlen(data) + 1)))
-		exit(1);
-	//shifted just enough to copy over data + nullbyte
-	//let's update unusedBytes
-	unusedBytes -= (strlen(data) + 1);
-
-	//and let's put our nullbytes at the front (unusedBytes) bytes of data
-	// (since we've 'defragmented' the rest of the file)
-
-	for (int k = 0; k < unusedBytes; k++)
-		m_file.write('\0', k);
-
-	// because of this upkeep requirement,
-	// and because (I'm assuming that) nullbytes can't be contained in a node
-	// this means we can skip the while loop if the first (unusedBytes) of the file are nullbytes
-
-
-	return true;
-
-
+	//update unusedBytes (which is now zero), and we're done
+	return (m_file.write(0, 0));
 
 }
 
@@ -240,29 +111,106 @@ bool DiskList::remove(const char* data)
 {
 	char temp[MAX_STR_LENGTH + 1];
 
+
+	int unusedByteOffset = getUnusedByteOffset();
+
 	bool flag = false;
+	char ch = ' ';
 
-	for (int i = 0; i < m_file.fileLength() - strlen(data); i++) //while there's enough space for data to conceivably be in the file
+	//m_file.read(ch, m_file.fileLength() - 1);
+
+	int i = sizeof(int); //start after 'pointer' (at the beginning of file)
+	int j;
+
+	while (i < unusedByteOffset - (strlen(data) + 1)) //while there's enough space for data to conceivably be in the file
 	{
-		if (!m_file.read(temp, strlen(data), i)) //copy over the next strlen(data) bytes of the file to temp
-			break;
-		temp[strlen(data)] = '\0'; //set nullbyte 
+		j = i;
+		while (j < unusedByteOffset)
+		{
+			if (!m_file.read(ch, j))
+				break;
+			if (j == i && ch == '\0') //if I started at a nullbyte,
+			{
+				//must be in the middle of some unused space
+				//keep going
+				while (j < unusedByteOffset && ch == '\0')
+				{
+					m_file.read(ch, j);
+					j++;
+				}
+			}
+			else
+			{
+				temp[j - i] = ch;
+				j++;
+				if (ch == '\0') //end of Node
+				{
+					break;
+				}
+			}
+		}
 
-		if (strcmp(data, temp) == 0) //if they match
+		if (j == unusedByteOffset && temp[j-i] != '\0') //we don't have a valid Node,
+				//and we've reached the end of the "NodeSpace" in file
+			break; //then can't be Node, and we should leave the loop
+
+
+		if (strcmp(data, temp) == 0) //if temp and target match
 		{
 			flag = true;
 			//"delete" the Node
-			//will signify deletion by replacing all chars in the length with '\0'
+			//will overwrite by setting to nullbyte (to make printAll() function easier/quicker)
 			for (int j = 0; j < strlen(data); j++)
+				if (!m_file.write('\0', i + j))
+					return false;
+			//strlen(data) + 1 is already nullbyte
+
+
+			// keep track of where this empty spot is (somewhere at the end of file)
+
+			char zeros[2 * sizeof(int)];
+			bool emptyNoted = false;
+			int location = i;
+			int size = strlen(data) + 1;
+
+			//first look to see if there are now-invalid spots at the end of file
+			// whose bytes we can reuse to hold a new location and size
+			for (int k = m_file.fileLength() - 2 * sizeof(int); k >= unusedByteOffset; k -= (2 * sizeof(int)))
 			{
-				if (!m_file.write('\0', i + j)) //for every index between i and (i+j-1), replace with nullbyte
-					break;
+				int j;
+				m_file.read(zeros, 2 * sizeof(int), k);
+				for (j = 0; j < 2 * sizeof(int); j++)
+					if (zeros[j] != '\0')
+					{
+						break;
+					}
+				if (j != 2 * sizeof(int)) //not all zeros
+					continue; //so still in use
+
+				//otherwise, is empty. Can be replaced
+				m_file.write(location, k); //write location first
+				m_file.write(size, k + sizeof(int)); //and size second
+				emptyNoted = true; //set flag
+				break;
 			}
-			unusedBytes += (strlen(data) + 1); //chars and its corresponding nullbyte now available
+
+			if (emptyNoted)
+				continue;
+			else
+			{
+				if (!m_file.write(location, m_file.fileLength())) //location of unused space
+					break;
+				if (!m_file.write(size, m_file.fileLength())) //size of unused space
+					break;
+				continue;
+			}
+
 		}
-		// keep checking for entire file (want to remove *all* instances of input parameter)
+		// check the next Node
+		i = j;
 	}
 
+	//out of loop!
 
 	return flag;
 }
@@ -270,13 +218,13 @@ bool DiskList::remove(const char* data)
 
 void DiskList::printAll()
 {
-	if (m_file.fileLength() == 0)
-		return;
 
-	int i = 0;
+	int unusedByteOffset = getUnusedByteOffset();
+
+
+	int i = sizeof(int);
 	char temp;
-	char s[MAX_STR_LENGTH + 1];
-	while (i < m_file.fileLength())
+	while (i < unusedByteOffset)
 	{
 		m_file.read(temp, i); //take the next char in the file
 		if (temp == '\0') //if nullbyte
@@ -303,3 +251,17 @@ void DiskList::printAll()
 	return;
 
 }
+
+
+//will give the byte in memory where the list of (# unused bytes, memory location) 'tuples' will be held
+//this int value will be stored at the front of the file
+inline int DiskList::getUnusedByteOffset()
+{
+	char s[sizeof(int) + 1];
+
+	m_file.read(s, sizeof(int), 0);
+	s[sizeof(int)] = '\0'; //put an end to CString
+	return atoi(s); //convert to int, the number of unusedBytes
+
+}
+

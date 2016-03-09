@@ -1,0 +1,111 @@
+File Structure for DiskList.txt
+
+File will be structured in the following order:
+
+1) a LONG containing the byte in the file where the (WhenNodedWasAdded, LocOfNode) valid tuples are located.
+
+2) a LONG containing the location of the byte where the no-longer-used Tuples reside
+
+3) a LONG that increments by one every time we push_front (and does NOT decrement when Nodes are removed)
+
+4) the data. Each Node will take up (MAX_NODE_SIZE + 1) bytes of space (so we don't have to worry about there not being enough space if we delete a Node and want to put in a new Node).
+This means the file will be ~(# of Nodes)*255 bytes large.
+
+5) The valid tuples: two LONG's, in the order (whenAdded, loc).
+	- whenAdded holds the value that (3) had when the tuple was created
+	- loc holds the location of the first byte of the Node of interest
+
+6) The invalid tuples: same structure, except:
+	- whenAdded == LONG_MAX
+(loc still holds the location of the first byte of the once-valid Node in the file)
+
+
+How the functions will operate on the file on disk:
+
+
+### The constructor will:
+
+do absolutely nothing.
+
+
+
+#### push_front will:
+
+if(filesize == 0)
+	- (1), (2) = 3*sizeof(long)
+	- (3) = 0
+
+
+return false if the Node is too big to fit
+
+determine whether there are any unused Nodes by checking whether pointerToUnusedTuples points to EOF or not.
+
+	if there are unused Nodes:
+		- get the location of the unused Node,  using the Tuple that (2) points.
+		- overwrite the data with the just-pushed Node.
+		- increment (3) by 1
+		- update the tuple to hold the value (3) currently is in its 'whenNodedWasAdded' long
+		- move (2) over to the right by one sizeof(tuple)
+		- return true
+
+	otherwise...
+		- shift over everything from (1) to EOF by MAX_NODE_SIZE
+		//- shift from (2) onwards to the right by one sizeof(tuple) (which should == EOF, so this step shouldn't be necessary) 
+		//- write at (2) - sizeof(tuple), whenNodeWasAdded and the location of the new Node (aka where (1) was). This inserts the newest Node right before pointerToUnusedTuples
+		- increment (3) by 1
+		- at EOF, make new validTuple (current value of (3), Location where pointerToValidTuple used to point)
+		- write at the location, the Node
+		- update (1) = (1)+MAX_NODE_SIZE+1
+		- update (2) to EOF (because there are no unused Nodes still)
+		- return true
+
+
+
+
+#### remove will:
+
+set the 'remove' counter to 0
+
+for each tuple in [pointerToUsedTuples, pointerToUnusedTuples):
+	- get orderNumber
+	- get location of Node
+
+	- read the Node (stored in a temp CString)
+
+	if the node matches with the target:
+		- set orderNumber == MAX_LONG
+		- increment remove counter by 1
+
+	- move to next tuple until I reach pointerToUnusedTuples
+
+if I 'removed' anything from the file:
+	- mergesort the tuples based on orderNumber
+	- move pointerToUnusedTuples back by removeCounter*sizeof(tuple) bytes (as those unused tuples have been sorted to be at the right of the 'list')
+
+return (removeCounter == 0)
+
+
+
+### printAll() will:
+
+with i starting from pointerToUnusedTuple - sizeOfTuple:
+	- get location of Node
+	- go to location, get Node contents
+	- print
+	- i -= sizeOfTuple
+
+	(get out when i < pointerToUsedTuples)
+
+
+### FAQ (or at least, questions frequently asked by me)
+
+
+Q: Is C/C++ optimized for reading/writing C-Strings vs. just moving arond chars?
+A: ?
+
+Q: Is there any reason that making such a large file will slow down the accessing of Nodes? (I keep track of where each Node is located near the end of file, and I know exactly which byte tht starts at. So I would guess 'not really', but I'm not sure.)
+A: ?
+
+Q: Is there some better way to implement this?
+A: ?
+

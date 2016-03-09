@@ -15,7 +15,9 @@ public:
 
 private:
 	BinaryFile m_file;
-	int unusedBytes;
+
+	inline int getUnusedByteOffset();
+
 };
 
 #pragma once
