@@ -21,7 +21,11 @@ public:
 		MultiMapTuple operator*();
 
 	private:
+		//for 'storage' purposes
 		bool m_valid;
+		std::string m_key;
+		std::string m_value;
+		std::string m_context;
 		// Your private member declarations will go here
 	};
 
@@ -36,6 +40,13 @@ public:
 
 private:
 	BinaryFile m_hash;
+	BinaryFile::Offset m_numBuckets;
+	BinaryFile::Offset m_headerLength;
+	std::string m_creatorMark;
+	BinaryFile::Offset hash(const std::string& input);
+	bool writeHeader();
+	bool DiskMultiMap::readHeader();
+
 	// Your private member declarations will go here
 };
 
