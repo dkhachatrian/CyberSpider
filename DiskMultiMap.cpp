@@ -16,30 +16,125 @@ const BinaryFile::Offset HEADER_LENGTH = sizeof(long) + sizeof(CREATOR_MARK);
 
 const int TEMP_SIZE = MAX_NODE_SIZE + 1;
 
+const char VALUE_SEPARATOR = '\0';
+
+const BinaryFile::Offset NEXT_NODE_LENGTH = sizeof(long);
+
+const BinaryFile::Offset NODE_FILE_SIZE = NEXT_NODE_LENGTH + MAX_NODE_SIZE + 2;
+	// +2 for VALUE_SEPARATOR and for nullbyte at very end of Node
+
+
+///////////////////////////////
+//// Iterator functions ///////
+///////////////////////////////
+
 DiskMultiMap::Iterator::Iterator()
 {
 	m_valid = false;
 }
 
-DiskMultiMap::Iterator::Iterator(BinaryFile::Offset startLoc, BinaryFile& hash)
+DiskMultiMap::Iterator::Iterator(const std::string& key, DiskMultiMap* map)
 {
+	m_map = map;
+	m_key = key;
+	m_index = m_map->hash(key);
 	
+	//determine validity
+
+	if (m_map->m_creatorMark != CREATOR_MARK)
+		m_valid = false;
+	else
+	{
+		checkValidity();
+	}
 }
 
 bool DiskMultiMap::Iterator::isValid() const
 {
 	return m_valid;
 }
+
+bool DiskMultiMap::Iterator::checkValidity()
+{
+	char ch;
+	if (!m_map->m_hash.read(ch, m_map->giveUsedByteIndex(m_index)))
+	{
+		m_valid = false;
+		return false; //couldn't read file!
+	}
+	else if ((ch - '0') == 0)
+		m_valid = false;
+	else
+		m_valid = true;
+
+	return true; //read file OK
+}
+
 DiskMultiMap::Iterator& DiskMultiMap::Iterator::operator++()
 {
 	if (!isValid())
 		return *this;
 	//otherwise increment up the MultiMap
+	char temp[sizeof(long) + 1];
+
+	m_map->m_hash.read(temp, sizeof(long), m_map->giveNodeByteIndex(m_index));
+	temp[sizeof(long)] = '\0';
+
+	long nextNode = atol(temp);
+	if (nextNode == 0) //++'d on a terminal Node
+	{
+		setValid(false);
+	}
+	else
+	{
+		m_index = nextNode;
+	}
+
+	return *this;
 }
+
 MultiMapTuple DiskMultiMap::Iterator::operator*()
 {
+	MultiMapTuple m;
+	m.context = "";
+	m.key = "";
+	m.value = "";
 
+	if (!isValid())
+		return m;
+	else
+	{
+		m.key = m_key;
+
+		char temp[MAX_NODE_SIZE + 2];
+
+		//first is value
+		m_map->m_hash.read(temp, MAX_NODE_SIZE + 2, //has nullbyte at end
+			m_map->giveNodeByteIndex(m_index) + NEXT_NODE_LENGTH);
+
+		m.value.assign(temp);
+
+		//second is context
+		// we should start reading m.value.size() + sizeof(value_separator) to the right
+		//  and read that many fewer bytes
+
+		m_map->m_hash.read(temp, MAX_NODE_SIZE + 2 - (m.value.size() + 1), //has nullbyte at end
+			m_map->giveNodeByteIndex(m_index) + NEXT_NODE_LENGTH + (m.value.size() + 1));
+
+		m.context.assign(temp);
+
+
+		//done!
+
+		return m;
+
+	}
 }
+
+
+///////////////////////////////////
+//// DiskMultiMap functions ///////
+///////////////////////////////////
 
 
 
@@ -48,7 +143,7 @@ DiskMultiMap::DiskMultiMap()
 	m_numBuckets = 0;
 	m_headerLength = 0;
 	m_creatorMark = "";
-
+	//m_used?
 	//BinaryFile m_hash; //is this even initializing anything? ...
 }
 
@@ -63,7 +158,9 @@ DiskMultiMap::~DiskMultiMap()
 //	1) A header containing, in order:
 //		- a long, saying the number of buckets this file holds
 //		- the creator mark C-string "Made by DiskMultiMap", so we know how the data is stored
-//	2) (numBuckets * (MAX_NODE_SIZE + 1)) nullbytes
+//  2) numBuckets nullbytes, to function as my vector of bools to determine
+//			whether a bucket is in use
+//	3) (numBuckets * NODE_FILE_SIZE) nullbytes
 //
 // When createNew()'ing, DiskMultiMap will
 //    store the header information in its private member variables.
@@ -79,10 +176,18 @@ bool DiskMultiMap::createNew(const std::string& filename, unsigned int numBucket
 
 	m_headerLength = HEADER_LENGTH;
 
+
+	//init'ing usedVector
+	for (int i = 0; i < numBuckets; i++)
+		if (!m_hash.write('\0', m_hash.fileLength()))
+			return false;
+
 	// writing filler...
 	for (int i = 0; i < numBuckets; i++)
 	{
-		for (int j = 0; j < (MAX_NODE_SIZE + 1); j++)
+		
+
+		for (int j = 0; j < (NODE_FILE_SIZE); j++)
 			if (!m_hash.write('\0', m_hash.fileLength()))
 				return false;
 	}
@@ -131,18 +236,38 @@ void DiskMultiMap::close()
 // Each Node in my open hash table will have a structure as follows:
 //	1. a single byte that is 0 when the Node is not in use and 1 when it is in use
 //	(sizeof(1) == 1)
-//	2. a long that holds the index of the first byte to the next Node in the list,
+//	2. a long that holds the index of the next Node in the list (0<=x<m_numBuckets),
 //			or the value 0 if the Node is a terminal Node.
 //	   When inserting a new Node and the hash-determined index is already filled,
 //			the program will check the proceeding index until it finds an unused slot
 // (sizeof(2) == sizeof(long))
 //	3. the 'value' and 'context' data in C-string form.
-//			In between the two values will be a space character (' ').
+//			In between the two values will be a VALUE_SEPARATOR.
 //			At the [MAX_NODE_SIZE]'th index will be a nullbyte.
 // (sizeof(3) == MAX_NDOE_SIZE + 1)
 bool DiskMultiMap::insert(const std::string& key, const std::string& value, const std::string& context)
 {
-	
+	if (!m_hash.isOpen())
+		return false;
+
+	int hashed = DiskMultiMap::hash(key);
+
+	if (hashed >= m_numBuckets) //then I screwed up in DiskMultiMap::hash() somehow
+		return false;
+
+	DiskMultiMap::Iterator it(key, this);
+
+	BinaryFile::Offset nb = giveNodeByteIndex(hashed);
+	BinaryFile::Offset fb = giveUsedByteIndex(hashed);
+
+	char ch;
+
+	if (!m_hash.read(ch, fb))
+		return false;
+	if ((ch - '0') == 0) //is it not in use?
+	{
+
+	}
 
 
 
@@ -163,10 +288,10 @@ int DiskMultiMap::erase(const std::string& key, const std::string& value, const 
 
 // private member functions
 
-BinaryFile::Offset DiskMultiMap::hash(const std::string& input)
+int DiskMultiMap::hash(const std::string& input)
 {
 	std::hash<std::string> str_hash;
-	BinaryFile::Offset hashValue = str_hash(input); //use STL's hash
+	int hashValue = str_hash(input); //use STL's hash
 	return (hashValue % m_numBuckets); //make sure it fits in the current file's bucket size
 }
 
@@ -216,3 +341,16 @@ bool DiskMultiMap::readHeader()
 	return true;
 
 }
+
+BinaryFile::Offset DiskMultiMap::giveNodeByteIndex(const int& index) const
+{
+	return ((HEADER_LENGTH + m_numBuckets) //header + usedVector
+		+ ( (NODE_FILE_SIZE) * index) //offset by index*nodesize
+		);
+}
+
+BinaryFile::Offset DiskMultiMap::giveUsedByteIndex(const int& index) const
+{
+	return HEADER_LENGTH + index;
+}
+

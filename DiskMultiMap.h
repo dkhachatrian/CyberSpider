@@ -3,6 +3,8 @@
 
 #include <string>
 #include "MultiMapTuple.h"
+#include "BinaryFile.h"
+#include <vector>
 
 const int MAX_NODE_SIZE = 120; //NOT including nullbyte
 
@@ -14,8 +16,8 @@ public:
 	{
 	public:
 		Iterator();
-		Iterator(BinaryFile::Offset startLoc, BinaryFile& hash);
-		// You may add additional constructors
+		DiskMultiMap::Iterator::Iterator(const std::string& key, DiskMultiMap* map);
+			// You may add additional constructors
 		bool isValid() const;
 		Iterator& operator++();
 		MultiMapTuple operator*();
@@ -23,9 +25,13 @@ public:
 	private:
 		//for 'storage' purposes
 		bool m_valid;
+		int m_index;
+		DiskMultiMap* m_map;
 		std::string m_key;
 		std::string m_value;
 		std::string m_context;
+		void setValid(bool x) { m_valid = x; }
+		bool checkValidity();
 		// Your private member declarations will go here
 	};
 
@@ -43,9 +49,12 @@ private:
 	BinaryFile::Offset m_numBuckets;
 	BinaryFile::Offset m_headerLength;
 	std::string m_creatorMark;
-	BinaryFile::Offset hash(const std::string& input);
+	int hash(const std::string& input);
+	BinaryFile::Offset giveNodeByteIndex(const int& index) const;
 	bool writeHeader();
 	bool DiskMultiMap::readHeader();
+	BinaryFile::Offset DiskMultiMap::giveUsedByteIndex(const int& index) const;
+
 
 	// Your private member declarations will go here
 };
