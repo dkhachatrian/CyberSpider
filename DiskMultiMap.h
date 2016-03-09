@@ -32,6 +32,7 @@ public:
 		std::string m_context;
 		void setValid(bool x) { m_valid = x; }
 		bool checkValidity();
+		std::string getKeyOfLocation();
 		// Your private member declarations will go here
 	};
 
