@@ -2,29 +2,6 @@
 #include "BinaryFile.h"
 #include <functional>
 
-const std::string CREATOR_MARK = "Made by DiskMultiMap";
-	// So we know the location of data in the file follows DiskMultiMap's hash
-	// Would be better to have this information stored with the BinaryFile object itself,
-	// but since I'm not allowed to alter its declaration/implementation,
-	// need to go about things somewhat sloppily and complain about it in the comments.
-	// (What am I, a YouTuber?)
-
-
-const BinaryFile::Offset HEADER_LENGTH = sizeof(long) + sizeof(CREATOR_MARK);
-	// If it's a file we made, sizeof(long) corresponds to m_numBuckets
-	// and sizeof(CREATOR_MARK) is the length of the 'watermark'
-
-const int TEMP_SIZE = MAX_NODE_SIZE + 1;
-
-const char VALUE_SEPARATOR = '\0';
-
-const BinaryFile::Offset NEXT_NODE_LENGTH = sizeof(long);
-
-const BinaryFile::Offset EXTRA_SIZE = 3;
-	// 3 for two VALUE_SEPARATOR's and for nullbyte at very end of Node
-
-const BinaryFile::Offset NODE_FILE_SIZE = NEXT_NODE_LENGTH + MAX_NODE_SIZE + EXTRA_SIZE;
-
 
 ///////////////////////////////
 //// Iterator functions ///////
@@ -38,14 +15,16 @@ DiskMultiMap::Iterator::Iterator()
 DiskMultiMap::Iterator::Iterator(const std::string& key, DiskMultiMap* map)
 {
 	m_map = map;
-	m_key = key;
-	m_index = m_map->hash(key);
+	//m_key = key;
+	m_bIndex = m_map->giveHeadByteIndex(m_map->hash(key));
+		//for beginning index, will be where hash function puts us
+	//m_index = m_map->hash(key);
 	
 	//determine validity
 
-	if (m_map->m_creatorMark != CREATOR_MARK)
-		m_valid = false;
-	else
+	//if (m_map->m_creatorMark != CREATOR_MARK)
+	//	m_valid = false;
+	//else
 	{
 		checkValidity();
 	}
@@ -58,32 +37,43 @@ bool DiskMultiMap::Iterator::isValid() const
 
 bool DiskMultiMap::Iterator::checkValidity()
 {
-	char ch;
-	m_valid = false;
-	if (!m_map->m_hash.read(ch, m_map->giveUsedByteIndex(m_index)))
+	if (m_bIndex == 0) //was sent to front of file
 	{
-		m_valid = false;
-		return false; //couldn't read file!
+		setValid(false); //that means I ++'d on a terminal Node
 	}
-	else if ((ch - '0') == 0)
-		m_valid = false;
 	else
 	{
-		std::string s = getKeyOfLocation();
-		int ind = m_index;
-		int i = 0;
-
-		while (i < m_map->m_numBuckets && (ch - '0') != 0 && s != m_key)
-		{
-			ind = (ind + 1) % (m_map->m_numBuckets);
-			s = getKeyOfLocation();
-			i++;
-		}
-		if(s == m_key)
-			m_valid = true;
-		else m_valid = false;
+		setValid(m_map->isNodeUsed(m_bIndex));
 	}
-	return true; //read file OK
+
+	return true; //return value doesn't matter...
+
+	//char ch;
+	//m_valid = false;
+	//if (!m_map->m_hash.read(ch, m_map->giveUsedByteIndex(m_index)))
+	//{
+	//	m_valid = false;
+	//	return false; //couldn't read file!
+	//}
+	//else if ((ch - '0') == 0)
+	//	m_valid = false;
+	//else
+	//{
+	//	std::string s = getKeyOfLocation();
+	//	int ind = m_index;
+	//	int i = 0;
+
+	//	while (i < m_map->m_numBuckets && (ch - '0') != 0 && s != m_key)
+	//	{
+	//		ind = (ind + 1) % (m_map->m_numBuckets);
+	//		s = getKeyOfLocation();
+	//		i++;
+	//	}
+	//	if(s == m_key)
+	//		m_valid = true;
+	//	else m_valid = false;
+	//}
+	//return true; //read file OK
 }
 
 DiskMultiMap::Iterator& DiskMultiMap::Iterator::operator++()
@@ -91,13 +81,16 @@ DiskMultiMap::Iterator& DiskMultiMap::Iterator::operator++()
 	if (!isValid())
 		return *this;
 	//otherwise increment up the MultiMap
-	char temp[sizeof(long) + 1];
 
-	m_map->m_hash.read(temp, sizeof(long), m_map->giveNodeByteIndex(m_index));
-	temp[sizeof(long)] = '\0';
+	m_bIndex = m_map->giveNextNodeLocation(m_bIndex);
 
-	long nextNode = atol(temp);
-	m_index = nextNode;
+	//char temp[sizeof(long) + 1];
+
+	//m_map->m_hash.read(temp, sizeof(long), m_map->giveHeadByteIndex(m_index));
+	//temp[sizeof(long)] = '\0';
+
+	//long nextNode = atol(temp);
+	//m_index = nextNode;
 
 	checkValidity(); //will become invalid if it went to an unusedNode
 
@@ -115,58 +108,53 @@ MultiMapTuple DiskMultiMap::Iterator::operator*()
 		return m;
 	else
 	{
-		//m.key = m_key;
-
-		char temp[MAX_NODE_SIZE + EXTRA_SIZE];
-		int delta = 0;
-
-		// first is key
-		m_map->m_hash.read(temp, MAX_NODE_SIZE + EXTRA_SIZE - delta, //has nullbyte at end
-			m_map->giveNodeByteIndex(m_index) + NEXT_NODE_LENGTH + delta);
-
-		m.key.assign(temp);
-
-		delta += (m_key.size() + 1);
-
-
-		//second is value
-		m_map->m_hash.read(temp, MAX_NODE_SIZE + EXTRA_SIZE - delta, //has nullbyte at end
-			m_map->giveNodeByteIndex(m_index) + NEXT_NODE_LENGTH + delta);
-
-		m.value.assign(temp);
-
-		delta += (m.key.size() + 1);
-
-
-		//third is context
-		// we should start reading m.value.size() + sizeof(value_separator) to the right
-		//  and read that many fewer bytes
-
-		m_map->m_hash.read(temp, MAX_NODE_SIZE + EXTRA_SIZE - delta, //has nullbyte at end
-			m_map->giveNodeByteIndex(m_index) + NEXT_NODE_LENGTH + delta);
-
-		m.context.assign(temp);
-
-
-		//done!
+		m.key = m_map->giveTupleElement(FIRST, m_bIndex);
+		m.context = m_map->giveTupleElement(SECOND, m_bIndex);
+		m.value = m_map->giveTupleElement(THIRD, m_bIndex);
 
 		return m;
+
+		////m.key = m_key;
+
+		//char temp[MAX_NODE_SIZE + EXTRA_SIZE];
+		//int delta = 0;
+
+		//// first is key
+		//m_map->m_hash.read(temp, MAX_NODE_SIZE + EXTRA_SIZE - delta, //has nullbyte at end
+		//	m_map->giveHeadByteIndex(m_index) + NEXT_NODE_LENGTH + delta);
+
+		//m.key.assign(temp);
+
+		//delta += (m_key.size() + 1);
+
+
+		////second is value
+		//m_map->m_hash.read(temp, MAX_NODE_SIZE + EXTRA_SIZE - delta, //has nullbyte at end
+		//	m_map->giveHeadByteIndex(m_index) + NEXT_NODE_LENGTH + delta);
+
+		//m.value.assign(temp);
+
+		//delta += (m.key.size() + 1);
+
+
+		////third is context
+		//// we should start reading m.value.size() + sizeof(value_separator) to the right
+		////  and read that many fewer bytes
+
+		//m_map->m_hash.read(temp, MAX_NODE_SIZE + EXTRA_SIZE - delta, //has nullbyte at end
+		//	m_map->giveHeadByteIndex(m_index) + NEXT_NODE_LENGTH + delta);
+
+		//m.context.assign(temp);
+
+
+		////done!
+
+		//return m;
 
 	}
 }
 
-std::string DiskMultiMap::Iterator::getKeyOfLocation()
-{
-	char temp[MAX_NODE_SIZE + EXTRA_SIZE];
-	int delta = 0;
 
-	// first is key
-	m_map->m_hash.read(temp, MAX_NODE_SIZE + EXTRA_SIZE - delta, //has nullbyte at end
-		m_map->giveNodeByteIndex(m_index) + NEXT_NODE_LENGTH + delta);
-
-	std::string s(temp);
-	return s;
-}
 
 
 ///////////////////////////////////
@@ -214,23 +202,23 @@ bool DiskMultiMap::createNew(const std::string& filename, unsigned int numBucket
 	m_headerLength = HEADER_LENGTH;
 
 
-	//init'ing usedVector
-	for (int i = 0; i < numBuckets; i++)
-		if (!m_hash.write('\0', m_hash.fileLength()))
-			return false;
+	////init'ing usedVector
+	//for (int i = 0; i < numBuckets; i++)
+	//	if (!m_hash.write('\0', m_hash.fileLength()))
+	//		return false;
 
 	// writing some stuff...
 	for (int i = 0; i < numBuckets; i++)
 	{
-		long p = ((i+1) % numBuckets);
-			// index of the proceeding bucket,
-			// which is where each original bucket will point
-		
-		if (!m_hash.write(p, m_hash.fileLength()))
-			return false;
-			//writing pointer
+		//long p = ((i+1) % numBuckets);
+		//	// index of the proceeding bucket,
+		//	// which is where each original bucket will point
+		//
+		//if (!m_hash.write(p, m_hash.fileLength()))
+		//	return false;
+		//	//writing pointer
 
-		for (int j = 0; j < MAX_NODE_SIZE + EXTRA_SIZE; j++)
+		for (int j = 0; j < NODE_FILE_SIZE; j++)
 			if (!m_hash.write('\0', m_hash.fileLength()))
 				return false;
 					//writing empty Nodes
@@ -285,7 +273,7 @@ void DiskMultiMap::close()
 //	   When inserting a new Node and the hash-determined index is already filled,
 //			the program will check the proceeding index until it finds an unused slot
 // (sizeof(2) == sizeof(long))
-//	3. the 'key' (to check for collisions), 'value', and 'context' data in C-string form.
+//	3. the 'key', 'value', and 'context' data in C-string form.
 //			In between the values will be a VALUE_SEPARATOR.
 //			At the [MAX_NODE_SIZE]'th index will be a nullbyte.
 // (sizeof(3) == MAX_NDOE_SIZE + EXTRA_SIZE)
@@ -301,10 +289,12 @@ bool DiskMultiMap::insert(const std::string& key, const std::string& value, cons
 
 	DiskMultiMap::Iterator it = search(key);
 
+	BinaryFile::Offset bIndex = giveHeadByteIndex(hashed);
+
 	
-	while (it.isValid())
+	while (isNodeUsed(bIndex)) //while I'm
 	{
-		it++; //progress to end of list
+		bIndex = giveNextNodeLocation(bIndex);
 	}
 
 	//now insert new Node, and update usedVector in file as well
@@ -382,15 +372,93 @@ bool DiskMultiMap::readHeader()
 
 }
 
-BinaryFile::Offset DiskMultiMap::giveNodeByteIndex(const int& index) const
+
+
+BinaryFile::Offset DiskMultiMap::giveHeadByteIndex(const int& index) const
 {
 	return ((HEADER_LENGTH + m_numBuckets) //header + usedVector
 		+ ( (NODE_FILE_SIZE) * index) //offset by index*nodesize
 		);
 }
 
-BinaryFile::Offset DiskMultiMap::giveUsedByteIndex(const int& index) const
+
+// Functions that interact with Nodes
+
+// Accessors
+
+BinaryFile::Offset DiskMultiMap::giveUsedByteIndex(BinaryFile::Offset bIndex) const
 {
-	return HEADER_LENGTH + index;
+	return bIndex;
 }
 
+
+
+BinaryFile::Offset DiskMultiMap::giveNextNodeByte(BinaryFile::Offset bIndex)
+{
+	return (bIndex += USED_FLAG_LENGTH);
+}
+
+
+// returns an Offset that is the first byte of the proceeding Node
+// (Sends to 0 if it was a terminal Node)
+BinaryFile::Offset DiskMultiMap::giveNextNodeLocation(BinaryFile::Offset bIndex)
+{
+	//BinaryFile::Offset b = bIndex;
+	bIndex = giveNextNodeByte(bIndex); //now at byteIndex portion
+
+	char temp[sizeof(long) + 1];
+
+	m_hash.read(temp, sizeof(long), bIndex);
+	temp[sizeof(long)] = '\0';
+
+	return (atol(temp));
+
+}
+
+// Assumption: bIndex is at start of valid Node
+bool DiskMultiMap::isNodeUsed(BinaryFile::Offset bIndex)
+{
+	char ch;
+	m_hash.read(ch, bIndex);
+	return (ch != NOT_IN_USE);
+}
+
+BinaryFile::Offset DiskMultiMap::giveTupleElementByte(element e, BinaryFile::Offset bIndex)
+{
+	int i = 0;
+	char ch;
+
+	bIndex += PRE_TUPLE_LENGTH;
+
+	while (i < e)
+	{
+		bIndex++;
+		m_hash.read(ch, bIndex);
+
+		if (ch == VALUE_SEPARATOR)
+			i++;
+	}
+
+	bIndex++; //move off VALUE_SEPARATOR, onto first byte of next element
+	return bIndex;
+
+}
+
+std::string DiskMultiMap::giveTupleElement(element e, BinaryFile::Offset bIndex)
+{
+	bIndex = giveTupleElementByte(e, bIndex);
+
+	char temp[TEMP_SIZE];
+
+	BinaryFile::Offset bEnd = giveTupleElementByte(END, bIndex);
+	BinaryFile::Offset delta = bEnd - bIndex; //length from element to end of entire Node
+		//string can not be any longer than that
+
+	m_hash.read(temp, bIndex, delta + 1);
+		//there should be a nullbyte in there somewhere
+	
+	std::string s(temp);
+	return s;
+
+
+}
