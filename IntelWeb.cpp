@@ -1,5 +1,6 @@
 #include "IntelWeb.h"
 #include <queue>
+#include <algorithm> // gives stl::sort
 
 const double BUCKET_FACTOR = 2;
 const std::string POSTSTRING_MACHINES = "_machines_hash_table.dat";
@@ -204,15 +205,99 @@ unsigned int IntelWeb::crawl(const std::vector<std::string>& indicators,
 	std::queue<MultiMapTuple> origins;
 	std::queue<DiskMultiMap::Iterator> itrs;
 
+	// set up initial queue...
 	for (int i = 0; i < indicators.size(); i++)
 	{
 		m_maliciousFlags->setValue(IS_MALICIOUS, indicators[i]);
 		// flag all indicators as malicious in hash table
 		
-		getAssociations(indicators[i], toBeChecked, itrs);
+		retrieveAssociations(indicators[i], toBeChecked, itrs);
 			// original Tuples are now in toBeChecked, with corresponding iterators
 			
 	}
+
+	MultiMapTuple m;
+	//char temp[TEMP_SIZE];
+	std::string temp;
+	std::string key;
+	long pr; //prevalence
+	char mal; //malicious flag
+
+	while (!toBeChecked.empty())
+	{
+		m = toBeChecked.front(); // get next in queue
+		toBeChecked.pop(); //remove from queue
+		key = m.key;
+
+		// check if we've already marked as malicious
+		m_maliciousFlags->getValue(key, temp);
+		if (temp.size() != 1)
+			exit(30); //I messed up...
+		mal = temp[0];
+
+		if (mal == IS_MALICIOUS) 
+		{
+			continue;	//we don't want to 're-check' it
+				// this should also prevent double-counting of identical lines
+		}
+
+
+		// get prevalence of current key
+		prevalences->getValue(key, temp);
+		pr = stol(temp);
+
+		if (pr < minPrevalenceToBeGood)	//		if its prevalence in prevalence hash table < minPrevalenceGood and it isn't already marked as malicious
+		{
+			m_maliciousFlags->setValue(IS_MALICIOUS, key);//	mark entity as malicious in hash table
+			badEntitiesFound.push_back(key); //	push entry into badEntitiesFound
+			retrieveAssociations(key, toBeChecked, itrs); //  push association'd values into toBeChecked, and push the indicator into indicators
+			badInteractions.push_back(makeInteractionTuple(m)); //	search in each hash table for each element of tuple (use iterator?) to find interactionLine, and push into BadInteractions
+		}
+	}
+
+	// when it gets here, found all possible bad entities and interactions
+	// and they are stored in
+	// badEntitiesFound (string vector) and
+	// badInteractions(InteractionTuple vector)
+
+	// now sort them using stl::sort
+	
+	sort(badEntitiesFound.begin(), badEntitiesFound.end(), isALessThanB_string);
+	// ugly function name, I know, but currently in "let's finish this thing already" mode
+	// and apparently C++ couldn't figure out what I meant without changing name...
+
+	//badInteractions is first sorted by context, then from, then to
+
+	// so create an appropriate operator< for interactionTuples and use that with sort
+
+	sort(badInteractions.begin(), badInteractions.end(), isALessThanB);
+
+	// we return the number of malicious entities found, which == badEntitiesFound.size()
+
+	return badEntitiesFound.size();
+
+
+	//std::vector<numberedString> contexts, froms, tos;
+
+	//for (int i = 0; i < badInteractions.size(); i++)
+	//{
+	//	contexts.push_back(numberedString(badInteractions[i].context, i));
+	//	froms.push_back(numberedString(badInteractions[i].from, i));
+	//	tos.push_back(numberedString(badInteractions[i].to, i));
+	//}
+
+	//std::vector<std::vector<numberedString>*> fields = { &contexts, &froms, &tos };
+	//int sorted = 0;
+	//std::vector<numberedString> f;
+
+	//// sort through each field
+	//for (int i = 0; i < fields.size(); i++)
+	//{
+	//	f = *(fields[i]);
+
+
+
+	//}
 
 
 	// flag all indicators as malicious in hash table
@@ -235,6 +320,44 @@ unsigned int IntelWeb::crawl(const std::vector<std::string>& indicators,
 	return 0;
 }
 
+bool IntelWeb::isALessThanB_string(std::string a, std::string b)
+{
+	return (a < b);
+}
+
+bool IntelWeb::isALessThanB(InteractionTuple a, InteractionTuple b)
+{
+	if (a.context < b.context)
+		return true;
+	else if (a.context > b.context)
+		return false;
+
+	else //a.context == b.context
+	{
+		//check froms
+		if (a.from < b.from)
+			return true;
+		else if (a.from > b.from)
+			return false;
+		else //a.from == b.from
+		{
+			//check tos
+			if (a.to < b.to)
+				return true;
+			else if (a.to > b.to)
+				return false;
+			else //a.to == b.to
+			{
+				//this means I'm comparing duplicates
+				//but I'm not supposed to have any duplicates in the vector I pass in!
+				//bad
+				exit(39);
+			}
+		}
+	}
+}
+
+
 bool IntelWeb::purge(const std::string & entity)
 {
 	// put all associations with entity into a queue
@@ -245,12 +368,16 @@ bool IntelWeb::purge(const std::string & entity)
 	return false;
 }
 
-
+InteractionTuple IntelWeb::makeInteractionTuple(MultiMapTuple m)
+{
+	InteractionTuple i(m.key, m.value, m.context);
+	return i;
+}
 
 // assoc will contain all associations related to key
 // origins will have the original Tuples the association was made from
 // itrs will hold Iterators starting at the beginning of the List of the hash table containing the original Tuple
-void IntelWeb::getAssociations(std::string key, std::queue<MultiMapTuple> origins, std::queue<DiskMultiMap::Iterator> itrs)
+void IntelWeb::retrieveAssociations(std::string key, std::queue<MultiMapTuple> origins, std::queue<DiskMultiMap::Iterator> itrs)
 {
 	DiskMultiMap::Iterator ita = associations->search(key);
 	std::string a, b, c;
@@ -441,8 +568,6 @@ void IntelWeb::makeAssociations(std::string v1, std::string v2, std::string v3)
 
 void IntelWeb::changePrevalenceBy(long x, std::string& input)
 {
-
-
 	std::string v;
 	prevalences->getValue(input, v);
 	long val = stol(v);

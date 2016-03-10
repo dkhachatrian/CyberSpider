@@ -109,9 +109,11 @@ private:
 
 	KeyType determineKeyType(std::string input);
 
+	InteractionTuple IntelWeb::makeInteractionTuple(MultiMapTuple m);
+
 	void makeAssociations(std::string v1, std::string v2, std::string v3);
 
-	void IntelWeb::getAssociations(std::string key, std::queue<MultiMapTuple> origins, std::queue<DiskMultiMap::Iterator> itrs);
+	void IntelWeb::retrieveAssociations(std::string key, std::queue<MultiMapTuple> origins, std::queue<DiskMultiMap::Iterator> itrs);
 
 	template <typename T>
 	bool IntelWeb::isALessThanB(T a, T b, element e)
@@ -119,8 +121,32 @@ private:
 		return (a[e] < b[e]);
 	}
 
+	bool IntelWeb::isALessThanB_string(std::string a, std::string b);
 
 
+	bool IntelWeb::isALessThanB(InteractionTuple a, InteractionTuple b);
+
+
+
+	/*
+	struct numberedString
+	{
+		numberedString(std::string st, int num)
+		{
+			s = st;
+			x = num;
+		}
+
+		//checking by string
+		bool operator<(const numberedString& other) const
+		{
+			return (this->s < other.s);
+		}
+
+		std::string s;
+		int x;
+	};
+	*/
 	// Your private member declarations will go here
 };
 
