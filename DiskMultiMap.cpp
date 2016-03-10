@@ -83,16 +83,18 @@ DiskMultiMap::Iterator& DiskMultiMap::Iterator::operator++()
 	//otherwise increment up the MultiMap
 
 	m_bIndex = m_map->giveNextNodeLocation(m_bIndex);
+		//increment once
 
-	//char temp[sizeof(long) + 1];
+	while (m_bIndex != 0)
+	{
+		if(!(m_map->isNodeUsed(m_bIndex)))
+			m_bIndex = m_map->giveNextNodeLocation(m_bIndex); // skip past deleted Nodes
+		else break; // and stop when you hit a valid Node
+	}
+			// will stop when it hits beginning of file or valid Node
 
-	//m_map->m_hash.read(temp, sizeof(long), m_map->giveHeadByteIndex(m_index));
-	//temp[sizeof(long)] = '\0';
 
-	//long nextNode = atol(temp);
-	//m_index = nextNode;
-
-	checkValidity(); //will become invalid if it went to an unusedNode
+	checkValidity(); //will become invalid if it went to beginning of file
 
 	return *this;
 }
@@ -292,12 +294,28 @@ bool DiskMultiMap::insert(const std::string& key, const std::string& value, cons
 	BinaryFile::Offset bIndex = giveHeadByteIndex(hashed);
 
 	
-	while (isNodeUsed(bIndex)) //while I'm
+	while (!isTerminalNode(bIndex)) //while we're not at the terminal Node
 	{
 		bIndex = giveNextNodeLocation(bIndex);
 	}
 
-	//now insert new Node, and update usedVector in file as well
+	// determine how it's a terminal Node
+
+	BinaryFile::Offset next = giveNextNodeLocation(bIndex);
+
+	if (next != BEGINNING_OF_FILE) //if we point to a deleted Node location
+	{
+		//overwrite old data in 'next'
+		
+
+
+		//set used flag of 'next' to true
+	}
+
+	//otherwise, add to end of file
+
+	BinaryFile::Offset b = m_hash.fileLength();
+
 
 
 }
@@ -415,6 +433,16 @@ BinaryFile::Offset DiskMultiMap::giveNextNodeLocation(BinaryFile::Offset bIndex)
 
 }
 
+// Terminal if points to beginning of file OR to a deleted Node
+bool DiskMultiMap::isTerminalNode(BinaryFile::Offset bIndex)
+{
+	bIndex = giveNextNodeLocation(bIndex);
+
+	return (bIndex == BEGINNING_OF_FILE || !isNodeUsed(bIndex));
+
+}
+
+
 // Assumption: bIndex is at start of valid Node
 bool DiskMultiMap::isNodeUsed(BinaryFile::Offset bIndex)
 {
@@ -422,6 +450,23 @@ bool DiskMultiMap::isNodeUsed(BinaryFile::Offset bIndex)
 	m_hash.read(ch, bIndex);
 	return (ch != NOT_IN_USE);
 }
+
+void DiskMultiMap::setUsedFlag(bool x, BinaryFile::Offset bIndex)
+{
+	char ch;
+	bIndex = giveUsedByteIndex(bIndex);
+
+	if (x)
+		ch = IN_USE;
+	else
+		ch = NOT_IN_USE;
+
+	m_hash.write(ch, bIndex);
+
+	return;
+
+}
+
 
 BinaryFile::Offset DiskMultiMap::giveTupleElementByte(element e, BinaryFile::Offset bIndex)
 {
@@ -462,3 +507,14 @@ std::string DiskMultiMap::giveTupleElement(element e, BinaryFile::Offset bIndex)
 
 
 }
+
+
+void DiskMultiMap::setNextTo(BinaryFile::Offset next, BinaryFile::Offset current)
+{
+	current = giveNextNodeByte(current);
+
+	m_hash.write(next, current);
+
+	return;
+}
+

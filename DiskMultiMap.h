@@ -9,6 +9,8 @@
 
 enum element { FIRST, SECOND, THIRD, END };
 
+const BinaryFile::Offset BEGINNING_OF_FILE = 0;
+
 const int MAX_ELEMENT_SIZE = 120 + 1; //INCLUDING nullbyte
 const int MAX_NODE_SIZE = 3 * MAX_ELEMENT_SIZE;
 
@@ -100,11 +102,13 @@ private:
 	BinaryFile::Offset DiskMultiMap::giveNextNodeLocation(BinaryFile::Offset bIndex);
 	BinaryFile::Offset DiskMultiMap::giveUsedByteIndex(BinaryFile::Offset bIndex) const;
 	bool DiskMultiMap::isNodeUsed(BinaryFile::Offset bIndex);
+	bool DiskMultiMap::isTerminalNode(BinaryFile::Offset bIndex);
 
 	BinaryFile::Offset DiskMultiMap::giveTupleElementByte(element e, BinaryFile::Offset bIndex);
 	std::string DiskMultiMap::giveTupleElement(element e, BinaryFile::Offset bIndex);
 
-
+	void DiskMultiMap::setNextTo(BinaryFile::Offset next, BinaryFile::Offset current);
+	void DiskMultiMap::setUsedFlag(bool x, BinaryFile::Offset bIndex);
 
 
 	// Your private member declarations will go here
