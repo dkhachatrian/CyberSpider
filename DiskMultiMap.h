@@ -9,7 +9,7 @@
 
 enum element { FIRST, SECOND, THIRD, END };
 
-const BinaryFile::Offset BEGINNING_OF_FILE = 0;
+const BinaryFile::Offset INVALID_NODE_LOCATION = 0;
 
 const int MAX_ELEMENT_SIZE = 120 + 1; //INCLUDING nullbyte
 const int MAX_NODE_SIZE = 3 * MAX_ELEMENT_SIZE;
@@ -53,6 +53,7 @@ public:
 	public:
 		Iterator();
 		DiskMultiMap::Iterator::Iterator(const std::string& key, DiskMultiMap* map);
+		DiskMultiMap::Iterator::Iterator(const BinaryFile::Offset& bIndex, DiskMultiMap* map);
 			// You may add additional constructors
 		bool isValid() const;
 		Iterator& operator++();
@@ -92,6 +93,8 @@ private:
 	BinaryFile::Offset giveHeadByteIndex(const int& index) const;
 	bool writeHeader();
 	bool DiskMultiMap::readHeader();
+	char* DiskMultiMap::copyNode(BinaryFile::Offset source, BinaryFile::Offset destination);
+
 
 
 	// functions dealing directly with Nodes' information
@@ -109,6 +112,8 @@ private:
 
 	void DiskMultiMap::setNextTo(BinaryFile::Offset next, BinaryFile::Offset current);
 	void DiskMultiMap::setUsedFlag(bool x, BinaryFile::Offset bIndex);
+
+	void DiskMultiMap::writeTupleInNode(BinaryFile::Offset loc, const std::string& key, const std::string& value, const std::string& context);
 
 
 	// Your private member declarations will go here
