@@ -17,18 +17,77 @@ public:
         bool openExisting(const std::string& filePrefix);
         void close();
         bool ingest(const std::string& telemetryFile);
-        unsigned int crawl(const std::vector<std::string>& indicators,
-                	   unsigned int minPrevalenceToBeGood,
-                	   std::vector<std::string>& badEntitiesFound,
-                	   std::vector<InteractionTuple>& interactions
-                	  );
+		unsigned int crawl(const std::vector<std::string>& indicators,
+			unsigned int minPrevalenceToBeGood,
+			std::vector<std::string>& badEntitiesFound,
+			std::vector<InteractionTuple>& badInteractions
+			);
         bool purge(const std::string& entity);
 
 private:
-	DiskMultiMap machines, websites, downloads;
-	BinaryFile prevalences; //will act differently from hash tables above
-	std::vector<DiskMultiMap> tables;
-	long p_buckets;
+	DiskMultiMap* machines;
+	DiskMultiMap* websites;
+	DiskMultiMap* downloads;
+	DiskMultiMap* associations; //contains all with 'key' ANYWHERE IN TUPLE
+
+	class SimpleHashTable :public BinaryFile
+	{
+	public:
+		SimpleHashTable(int x)
+		{
+			m_sizeOfNode = x;
+		}
+
+		void getValue(const std::string & input, std::string& output)
+		{
+			char temp[100];
+			BinaryFile::Offset bIndex = giveBIndex(input);
+
+			read(temp, nodeSize(), bIndex);
+			temp[nodeSize()] = '\0';
+
+			output.assign(temp);
+			return;
+		}
+
+		BinaryFile::Offset giveBIndex(const std::string & input)
+		{
+			long hashed = m_owner->hash(input, giveNumberOfBuckets());
+
+			return (hashed * nodeSize());
+		}
+
+		void setValue(BinaryFile::Offset value, const std::string & input)
+		{
+			BinaryFile::Offset bIndex = giveBIndex(input);
+
+			write(value, bIndex);
+
+			return;
+		}
+
+		BinaryFile::Offset giveNumberOfBuckets()
+		{
+			return fileLength() / nodeSize();
+		}
+
+		BinaryFile::Offset nodeSize() const
+		{
+			return m_sizeOfNode;
+		}
+
+	private:
+		Offset m_sizeOfNode;
+		IntelWeb* m_owner;
+	};
+
+	void IntelWeb::changePrevalenceBy(long x, std::string& input);
+
+	std::vector<SimpleHashTable*> simples;
+	SimpleHashTable* prevalences; //will act differently from hash tables above
+	SimpleHashTable* m_maliciousFlags;
+	std::vector<DiskMultiMap*> tables;
+	long m_buckets_iw;
 	//int expectedNumber;
 
 	void closeAll();
@@ -42,9 +101,13 @@ private:
 		return (hashValue % numBuckets); //make sure it fits in the current file's bucket size
 	}
 
-	long getPrevalenceNumber(const std::string& input);
-	BinaryFile::Offset givePIndex(const std::string& input);
-	void setPIndex(BinaryFile::Offset value, std::string& input);
+	//long getPrevalenceNumber(const std::string& input);
+	//BinaryFile::Offset givePIndex(const std::string& input);
+	//void setPIndex(BinaryFile::Offset value, std::string& input);
+
+	KeyType determineKeyType(std::string input);
+
+	void makeAssociations(std::string v1, std::string v2, std::string v3);
 
 	// Your private member declarations will go here
 };
