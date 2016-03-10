@@ -1,4 +1,5 @@
 #include "IntelWeb.h"
+#include <queue>
 
 const double BUCKET_FACTOR = 2;
 const std::string POSTSTRING_MACHINES = "_machines_hash_table.dat";
@@ -8,7 +9,6 @@ const std::string POSTSTRING_ASSOCIATIONS = "_associations_hash_table.dat";
 
 const char IS_MALICIOUS = '1';
 const char IS_NOT_MALICIOUS = '0';
-
 
 enum KeyType { machine, website, download };
 
@@ -200,6 +200,21 @@ unsigned int IntelWeb::crawl(const std::vector<std::string>& indicators,
 	std::vector<InteractionTuple>& badInteractions
 	)
 {
+	std::queue<MultiMapTuple> toBeChecked;
+	std::queue<MultiMapTuple> origins;
+	std::queue<DiskMultiMap::Iterator> itrs;
+
+	for (int i = 0; i < indicators.size(); i++)
+	{
+		m_maliciousFlags->setValue(IS_MALICIOUS, indicators[i]);
+		// flag all indicators as malicious in hash table
+		
+		getAssociations(indicators[i], toBeChecked, itrs);
+			// original Tuples are now in toBeChecked, with corresponding iterators
+			
+	}
+
+
 	// flag all indicators as malicious in hash table
 	// make an empty queue<string> toBeCehcked
 	// make an empty queue<string> for indicators
@@ -232,14 +247,86 @@ bool IntelWeb::purge(const std::string & entity)
 
 
 
+// assoc will contain all associations related to key
+// origins will have the original Tuples the association was made from
+// itrs will hold Iterators starting at the beginning of the List of the hash table containing the original Tuple
+void IntelWeb::getAssociations(std::string key, std::queue<MultiMapTuple> origins, std::queue<DiskMultiMap::Iterator> itrs)
+{
+	DiskMultiMap::Iterator ita = associations->search(key);
+	std::string a, b, c;
+	while (ita.isValid())
+	{
+		MultiMapTuple m = *ita;
+		//assoc.push(m);
+		// push association
+
+		// figure out what hash table has the original line that caused the associations
+
+		// in the associations table, a and b don't have meaning
+		// so they can appear in either order in the other hash tables
+		a = m.key;
+		b = m.value;
+		c = m.context;
+
+		//depending on KeyType of key (==a), will search different hash table in different order
+
+		KeyType t = determineKeyType(a);
+		DiskMultiMap::Iterator itTrue;
+		std::string s1, s2, s3;
+
+		// order they were added in associations table was one of the following:
+		// - key value context
+		// - value key context
+		// - context key value
+		//
+		// In all hash tables, Tuple is saved as (key, value, context)
+
+		// will figure out what Map to iterate over, and order to check Tuple
+		switch (t)
+		{
+		case machine:
+			itTrue = machines->search(a);
+			s1 = a;
+			s2 = b;
+			s3 = c;
+			break;
+		case website:
+			itTrue = websites->search(a);
+			s1 = b;
+			s2 = a;
+			s3 = c;
+			break;
+		case download:
+			itTrue = downloads->search(a);
+			s1 = c;
+			s2 = a;
+			s3 = b;
+			break;
+		}
+
+		// when I originally inserted, I also put the original line into hash table
+		// so don't need to iterate to look for something that's definitely there
+
+		MultiMapTuple ori;
+		ori.key = s1;
+		ori.value = s2;
+		ori.context = s3;
+		origins.push(ori);
+		itrs.push(itTrue);
+
+		ita++; //go to next Node
+	}
+}
+
+
 
 void IntelWeb::closeAll()
 {
 	for (int i = 0; i < tables.size(); i++)
-		tables[i].close();
+		tables[i]->close();
 
-	if (prevalences.isOpen())
-		prevalences.close();
+	if (prevalences->isOpen())
+		prevalences->close();
 }
 
 bool IntelWeb::createNewAll(std::string filePrefix, int maxDataItems)

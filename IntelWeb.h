@@ -86,6 +86,8 @@ private:
 	std::vector<SimpleHashTable*> simples;
 	SimpleHashTable* prevalences; //will act differently from hash tables above
 	SimpleHashTable* m_maliciousFlags;
+	//SimpleHashTable* m_originalAssociations; //hash v1,v2,v3
+
 	std::vector<DiskMultiMap*> tables;
 	long m_buckets_iw;
 	//int expectedNumber;
@@ -108,6 +110,16 @@ private:
 	KeyType determineKeyType(std::string input);
 
 	void makeAssociations(std::string v1, std::string v2, std::string v3);
+
+	void IntelWeb::getAssociations(std::string key, std::queue<MultiMapTuple> origins, std::queue<DiskMultiMap::Iterator> itrs);
+
+	template <typename T>
+	bool IntelWeb::isALessThanB(T a, T b, element e)
+	{
+		return (a[e] < b[e]);
+	}
+
+
 
 	// Your private member declarations will go here
 };
