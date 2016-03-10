@@ -1,22 +1,5 @@
 #include "IntelWeb.h"
-#include <queue>
 #include <algorithm> // gives stl::sort
-
-const double BUCKET_FACTOR = 2;
-const std::string POSTSTRING_MACHINES = "_machines_hash_table.dat";
-const std::string POSTSTRING_WEBSITES = "_websites_hash_table.dat";
-const std::string POSTSTRING_DOWNLOADS = "_downloads_hash_table.dat";
-const std::string POSTSTRING_ASSOCIATIONS = "_associations_hash_table.dat";
-
-const char IS_MALICIOUS = '1';
-const char IS_NOT_MALICIOUS = '0';
-
-enum KeyType { machine, website, download };
-
-const std::string POSTSTRING_PREVALENCES = "_prevalences_hash_table.dat";
-
-std::vector<std::string> poststrings =
-{ POSTSTRING_MACHINES , POSTSTRING_WEBSITES, POSTSTRING_DOWNLOADS, POSTSTRING_ASSOCIATIONS };
 
 
 IntelWeb::IntelWeb()
@@ -320,12 +303,14 @@ unsigned int IntelWeb::crawl(const std::vector<std::string>& indicators,
 	return 0;
 }
 
-bool IntelWeb::isALessThanB_string(std::string a, std::string b)
+// predicate functions
+
+bool isALessThanB_string(std::string a, std::string b)
 {
 	return (a < b);
 }
 
-bool IntelWeb::isALessThanB(InteractionTuple a, InteractionTuple b)
+bool isALessThanB(InteractionTuple a, InteractionTuple b)
 {
 	if (a.context < b.context)
 		return true;
@@ -441,7 +426,7 @@ void IntelWeb::retrieveAssociations(std::string key, std::queue<MultiMapTuple> o
 		origins.push(ori);
 		itrs.push(itTrue);
 
-		ita++; //go to next Node
+		++ita; //go to next Node
 	}
 }
 

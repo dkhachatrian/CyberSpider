@@ -5,6 +5,27 @@
 #include "DiskMultiMap.h"
 #include <string>
 #include <vector>
+#include <queue>
+
+const double BUCKET_FACTOR = 2;
+const std::string POSTSTRING_MACHINES = "_machines_hash_table.dat";
+const std::string POSTSTRING_WEBSITES = "_websites_hash_table.dat";
+const std::string POSTSTRING_DOWNLOADS = "_downloads_hash_table.dat";
+const std::string POSTSTRING_ASSOCIATIONS = "_associations_hash_table.dat";
+
+const char IS_MALICIOUS = '1';
+const char IS_NOT_MALICIOUS = '0';
+
+enum KeyType { machine, website, download };
+
+const std::string POSTSTRING_PREVALENCES = "_prevalences_hash_table.dat";
+
+std::vector<std::string> poststrings =
+{ POSTSTRING_MACHINES , POSTSTRING_WEBSITES, POSTSTRING_DOWNLOADS, POSTSTRING_ASSOCIATIONS };
+
+
+
+
 
 //class DiskMultiMap;
 
@@ -114,17 +135,13 @@ private:
 	void makeAssociations(std::string v1, std::string v2, std::string v3);
 
 	void IntelWeb::retrieveAssociations(std::string key, std::queue<MultiMapTuple> origins, std::queue<DiskMultiMap::Iterator> itrs);
-
+	/*
 	template <typename T>
 	bool IntelWeb::isALessThanB(T a, T b, element e)
 	{
 		return (a[e] < b[e]);
 	}
-
-	bool IntelWeb::isALessThanB_string(std::string a, std::string b);
-
-
-	bool IntelWeb::isALessThanB(InteractionTuple a, InteractionTuple b);
+	*/
 
 
 
@@ -149,6 +166,16 @@ private:
 	*/
 	// Your private member declarations will go here
 };
+
+
+// helper functions (predicate functions)
+
+
+bool isALessThanB_string(std::string a, std::string b);
+
+
+bool isALessThanB(InteractionTuple a, InteractionTuple b);
+
 
 #endif // INTELWEB_H_
                 
