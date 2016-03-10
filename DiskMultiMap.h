@@ -4,6 +4,9 @@
 #include <string>
 #include "MultiMapTuple.h"
 #include "BinaryFile.h"
+#include <functional>
+#include <vector>
+#include <queue>
 
 // CONSTANTS
 
@@ -93,7 +96,7 @@ private:
 	BinaryFile::Offset giveHeadByteIndex(const int& index) const;
 	bool writeHeader();
 	bool DiskMultiMap::readHeader();
-	char* DiskMultiMap::copyNode(BinaryFile::Offset source, BinaryFile::Offset destination);
+	void DiskMultiMap::copyNode(BinaryFile::Offset source, BinaryFile::Offset destination);
 
 
 

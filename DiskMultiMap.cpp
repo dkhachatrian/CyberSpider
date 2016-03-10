@@ -1,8 +1,5 @@
 #include "DiskMultiMap.h"
-#include "BinaryFile.h"
-#include <functional>
-#include <vector>
-#include <queue>
+
 
 ///////////////////////////////
 //// Iterator functions ///////
@@ -503,7 +500,7 @@ int DiskMultiMap::erase(const std::string& key, const std::string& value, const 
 // private member functions
 
 //will return the destination's information as a char*
-char* DiskMultiMap::copyNode(BinaryFile::Offset source, BinaryFile::Offset destination)
+void DiskMultiMap::copyNode(BinaryFile::Offset source, BinaryFile::Offset destination)
 {
 	char temp[NODE_FILE_SIZE];
 
@@ -513,7 +510,7 @@ char* DiskMultiMap::copyNode(BinaryFile::Offset source, BinaryFile::Offset desti
 	m_hash.read(result, NODE_FILE_SIZE, destination); //to be returned
 	m_hash.write(temp, NODE_FILE_SIZE, destination); //overwrite
 
-	return result;
+	return;
 }
 
 int DiskMultiMap::hash(const std::string& input)
@@ -653,8 +650,12 @@ BinaryFile::Offset DiskMultiMap::giveTupleElementByte(element e, BinaryFile::Off
 	int i = 0;
 	char ch;
 
-	bIndex += PRE_TUPLE_LENGTH;
+	bIndex += PRE_TUPLE_LENGTH; // at start of elements
 
+	bIndex += (e * MAX_ELEMENT_SIZE); // jump e elements
+
+	return bIndex; // and return
+	/*
 	while (i < e)
 	{
 		bIndex++;
@@ -666,7 +667,7 @@ BinaryFile::Offset DiskMultiMap::giveTupleElementByte(element e, BinaryFile::Off
 
 	bIndex++; //move off VALUE_SEPARATOR, onto first byte of next element
 	return bIndex;
-
+	*/
 }
 
 std::string DiskMultiMap::giveTupleElement(element e, BinaryFile::Offset bIndex)
