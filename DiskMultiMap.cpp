@@ -15,14 +15,24 @@ DiskMultiMap::Iterator::Iterator(const std::string& key, DiskMultiMap* map)
 	m_map = map;
 	//m_key = key;
 	m_bIndex = m_map->giveHeadByteIndex(m_map->hash(key));
-		//for beginning index, will be where hash function puts us
-	//m_index = m_map->hash(key);
-	
-	//determine validity
 
-	//if (m_map->m_creatorMark != CREATOR_MARK)
-	//	m_valid = false;
-	//else
+	std::string fileKey = m_map->giveTupleElement(FIRST, m_bIndex);
+	int i = 0;
+	for (i = 0; i < m_map->m_numBuckets; i++)
+	{
+		if (key != fileKey)
+		{
+			m_bIndex += NODE_FILE_SIZE;
+			fileKey = m_map->giveTupleElement(FIRST, m_bIndex);
+		}
+		else break;
+	}
+
+	if (i == m_map->m_numBuckets)
+	{
+		setValid(false);
+	}
+	else
 	{
 		checkValidity();
 	}
