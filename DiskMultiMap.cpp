@@ -16,26 +16,8 @@ DiskMultiMap::Iterator::Iterator(const std::string& key, DiskMultiMap* map)
 	//m_key = key;
 	m_bIndex = m_map->giveHeadByteIndex(m_map->hash(key));
 
-	std::string fileKey = m_map->giveTupleElement(FIRST, m_bIndex);
-	int i = 0;
-	for (i = 0; i < m_map->m_numBuckets; i++)
-	{
-		if (key != fileKey)
-		{
-			m_bIndex += NODE_FILE_SIZE;
-			fileKey = m_map->giveTupleElement(FIRST, m_bIndex);
-		}
-		else break;
-	}
 
-	if (i == m_map->m_numBuckets)
-	{
-		setValid(false);
-	}
-	else
-	{
-		checkValidity();
-	}
+	setValid(m_map->findMatchingKey(key, m_bIndex));
 }
 
 DiskMultiMap::Iterator::Iterator(const BinaryFile::Offset& bIndex, DiskMultiMap* map)
@@ -317,28 +299,10 @@ bool DiskMultiMap::insert(const std::string& key, const std::string& value, cons
 	std::string headKey = giveTupleElement(FIRST, current);
 	int i = 0;
 
-	//if collision, go down nodes until one is empty
-	for (i = 0; i < m_numBuckets; i++)
-	{
-		if(!isNodeUsed(current))
-		{
-			writeTupleInNode(current, key, value, context);
-			return true;
-		}
-		else if (headKey != key)
-		{
-			current += NODE_FILE_SIZE; //shift to next Node
-			headKey = giveTupleElement(FIRST, current);
-		}
-		else //found matching key in valid Node at 'head'
-			break;
-		
-	}
+	bool result = findMatchingKey(key, current);
 
-	//if full, can't insert
-	if (i == m_numBuckets)
-		return false;
-
+	if (!result)
+		return false; //couldn't find it
 
 	while (!isTerminalNode(current)) //while we're not at the terminal Node
 	{
@@ -396,6 +360,12 @@ int DiskMultiMap::erase(const std::string& key, const std::string& value, const 
 	MultiMapTuple m;
 
 	BinaryFile::Offset head = giveHeadByteIndex(hashed);
+
+	bool result = findMatchingKey(key, head);
+
+	if (!result)
+		return false; //couldn't find it
+
 	BinaryFile::Offset current = head;
 
 	BinaryFile::Offset next = giveNextNodeLocation(current);
@@ -783,4 +753,27 @@ void DiskMultiMap::writeTupleInNode(BinaryFile::Offset loc, const std::string& k
 
 	//return
 
+}
+
+bool DiskMultiMap::findMatchingKey(const std::string & key, BinaryFile::Offset & loc)
+{
+	int i = 0;
+	std::string fileKey = giveTupleElement(FIRST, loc);
+
+
+	for (i = 0; i < m_numBuckets; i++)
+	{
+		if (key != fileKey)
+		{
+			loc += NODE_FILE_SIZE;
+			fileKey = giveTupleElement(FIRST, loc);
+		}
+		else break;
+	}
+
+	if (i == m_numBuckets)
+	{
+		return false;
+	}
+	else return true;
 }

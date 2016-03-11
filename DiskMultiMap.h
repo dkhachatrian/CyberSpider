@@ -118,6 +118,7 @@ private:
 
 	void DiskMultiMap::writeTupleInNode(BinaryFile::Offset loc, const std::string& key, const std::string& value, const std::string& context);
 
+	bool findMatchingKey(const std::string& key, BinaryFile::Offset& loc);
 
 	// Your private member declarations will go here
 };
