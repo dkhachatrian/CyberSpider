@@ -226,7 +226,7 @@ unsigned int IntelWeb::crawl(const std::vector<std::string>& indicators,
 		m_maliciousFlags->setValue(IS_MALICIOUS, indicators[i]);
 		// flag all indicators as malicious in hash table
 		
-		retrieveAssociations(indicators[i], toBeChecked, itrs);
+		retrieveAssociations(indicators[i], toBeChecked);
 			// original Tuples are now in toBeChecked, with corresponding iterators
 			
 	}
@@ -265,7 +265,7 @@ unsigned int IntelWeb::crawl(const std::vector<std::string>& indicators,
 		{
 			m_maliciousFlags->setValue(IS_MALICIOUS, key);//	mark entity as malicious in hash table
 			badEntitiesFound.push_back(key); //	push entry into badEntitiesFound
-			retrieveAssociations(key, toBeChecked, itrs); //  push association'd values into toBeChecked, and push the indicator into indicators
+			retrieveAssociations(key, toBeChecked); //  push association'd values into toBeChecked, and push the indicator into indicators
 			badInteractions.push_back(makeInteractionTuple(m)); //	search in each hash table for each element of tuple (use iterator?) to find interactionLine, and push into BadInteractions
 		}
 	}
@@ -292,47 +292,6 @@ unsigned int IntelWeb::crawl(const std::vector<std::string>& indicators,
 	return badEntitiesFound.size();
 
 
-	//std::vector<numberedString> contexts, froms, tos;
-
-	//for (int i = 0; i < badInteractions.size(); i++)
-	//{
-	//	contexts.push_back(numberedString(badInteractions[i].context, i));
-	//	froms.push_back(numberedString(badInteractions[i].from, i));
-	//	tos.push_back(numberedString(badInteractions[i].to, i));
-	//}
-
-	//std::vector<std::vector<numberedString>*> fields = { &contexts, &froms, &tos };
-	//int sorted = 0;
-	//std::vector<numberedString> f;
-
-	//// sort through each field
-	//for (int i = 0; i < fields.size(); i++)
-	//{
-	//	f = *(fields[i]);
-
-
-
-	//}
-
-
-	// flag all indicators as malicious in hash table
-	// make an empty queue<string> toBeCehcked
-	// make an empty queue<string> for indicators
-	// search associations hash table using indicator[i], pushing into queues
-	// while queue isn't empty:
-	//		if its prevalence in prevalence hash table < minPrevalenceGood and it isn't already marked as malicious
-	//			mark entity as malicious in hash table
-	//			push entry into badEntitiesFound
-	//			mark association'd values as malicious, push them into toBeChecked, and push the indicator into indicators
-	//			search in each hash table for each element of tuple (use iterator?) to find interactionLine, and push into BadInteractions
-	//	
-	//	sort badEntitiesFound and BadInteractions (mergeSort? stl::sort?)
-	// 
-	//
-	//
-	// return badEntitiesFound.size();
-
-	//return 0;
 }
 
 
@@ -343,7 +302,7 @@ bool IntelWeb::purge(const std::string & entity)
 	std::queue<MultiMapTuple> assoc;
 	std::queue<DiskMultiMap::Iterator> itrs;
 
-	retrieveAssociations(entity, assoc, itrs);
+	retrieveAssociations(entity, assoc);
 			// put all associations with entity into a queue
 
 	MultiMapTuple m;
@@ -454,7 +413,7 @@ InteractionTuple IntelWeb::makeInteractionTuple(MultiMapTuple m)
 // assoc will contain all associations related to key
 // origins will have the original Tuples the association was made from
 // itrs will hold Iterators starting at the beginning of the List of the hash table containing the original Tuple
-void IntelWeb::retrieveAssociations(std::string key, std::queue<MultiMapTuple> origins, std::queue<DiskMultiMap::Iterator> itrs)
+void IntelWeb::retrieveAssociations(std::string key, std::queue<MultiMapTuple> origins)
 {
 	DiskMultiMap::Iterator ita = associations->search(key);
 	std::string a, b, c;
@@ -507,19 +466,28 @@ void IntelWeb::retrieveAssociations(std::string key, std::queue<MultiMapTuple> o
 			s3 = b;
 			break;
 		}
-
-		// when I originally inserted, I also put the original line into hash table
-		// so don't need to iterate to look for something that's definitely there
-
 		MultiMapTuple ori;
+
 		ori.key = s1;
 		ori.value = s2;
 		ori.context = s3;
-		origins.push(ori);
-		itrs.push(itTrue);
+
+		while (itTrue.isValid())
+		{
+			MultiMapTuple temp = (*itTrue);
+
+			if (temp.key == ori.key && temp.value == ori.value && temp.context == ori.context)
+				break;
+			else ++itTrue;
+		}
+		if (!itTrue.isValid()) //then was in map!
+		{
+			origins.push(ori);
+		}
 
 		++ita; //go to next Node
 	}
+
 }
 
 

@@ -157,7 +157,7 @@ private:
 
 	void makeAssociations(std::string v1, std::string v2, std::string v3);
 
-	void IntelWeb::retrieveAssociations(std::string key, std::queue<MultiMapTuple> origins, std::queue<DiskMultiMap::Iterator> itrs);
+	void IntelWeb::retrieveAssociations(std::string key, std::queue<MultiMapTuple> origins);
 	/*
 	template <typename T>
 	bool IntelWeb::isALessThanB(T a, T b, element e)
