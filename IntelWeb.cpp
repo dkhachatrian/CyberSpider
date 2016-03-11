@@ -300,57 +300,111 @@ unsigned int IntelWeb::crawl(const std::vector<std::string>& indicators,
 	//
 	// return badEntitiesFound.size();
 
-	return 0;
+	//return 0;
 }
 
-// predicate functions
 
-bool isALessThanB_string(std::string a, std::string b)
-{
-	return (a < b);
-}
-
-bool isALessThanB(InteractionTuple a, InteractionTuple b)
-{
-	if (a.context < b.context)
-		return true;
-	else if (a.context > b.context)
-		return false;
-
-	else //a.context == b.context
-	{
-		//check froms
-		if (a.from < b.from)
-			return true;
-		else if (a.from > b.from)
-			return false;
-		else //a.from == b.from
-		{
-			//check tos
-			if (a.to < b.to)
-				return true;
-			else if (a.to > b.to)
-				return false;
-			else //a.to == b.to
-			{
-				//this means I'm comparing duplicates
-				//but I'm not supposed to have any duplicates in the vector I pass in!
-				//bad
-				exit(39);
-			}
-		}
-	}
-}
 
 
 bool IntelWeb::purge(const std::string & entity)
 {
-	// put all associations with entity into a queue
+	std::queue<MultiMapTuple> assoc;
+	std::queue<DiskMultiMap::Iterator> itrs;
+
+	retrieveAssociations(entity, assoc, itrs);
+			// put all associations with entity into a queue
+
+	MultiMapTuple m;
+	DiskMultiMap::Iterator it;
+	KeyType k;
+
+
+	DiskMultiMap* dmm;
+
+	if (assoc.size() != itrs.size())
+	{
+		exit(27);//I screwed up
+	}
+
+	if (assoc.empty())
+	{
+		//file isn't in logs
+		return false;
+	}
+	// otherwise, there is something we're going to remove
+	// so return true at the end
+
+	while (!assoc.empty() && !itrs.empty())
+	{
+		m = assoc.front();
+		k = determineKeyType(m.key);
+		it = itrs.front();
+		assoc.pop();
+		itrs.pop();
+
+		// choose correct diskmultimap
+		switch (k)
+		{
+		case machine:
+			dmm = machines;
+			break;
+		case website:
+			dmm = websites;
+			break;
+		case download:
+			dmm = downloads;
+			break;
+		}
+
+		//in retrieveAssociations, already checked that these 'origins' are in the hash table
+		// so just delete them
+
+		dmm->erase(m.key, m.value, m.context);
+
+		//also remove from associations
+
+		associations->erase(m.key, m.value, m.context);
+
+		//decrement prevalence (by the end of this, it sure as hell should be 0 for 'entity')
+
+		changePrevalenceBy(-1, m.key);
+		changePrevalenceBy(-1, m.value);
+		changePrevalenceBy(-1, m.context);
+
+
+
+		//while (it.isValid())
+		//{
+		//	m = (*it);
+
+		//	if (isEqualToB(m, toBeMatched)) //then we found it
+		//	{
+
+		//	}
+		//	else ++it; //otherwise we keep looking
+		//}
+
+
+	}
+
+	// since key is purged, its value won't ever be used again
+	// so malicious flags need not be changed
+	// but will do it anyway
+	m_maliciousFlags->setValue(IS_NOT_MALICIOUS, entity);
+
+	// done!
+
+	return true;
+
+	// (DO WE HAVE TO SOMEHOW REMEMBER IT CAUSED OTHER FILES TO BE MALICIOUS AND REVERSE THAT?)
+	// (If so, that is unfortunate.)
+
+
 	// while queue isn't empty:
 	//			search in each hash table for each element of tuple to find interactionLine, and push into BadInteractions
 	//			set them
 
-	return false;
+
 }
 
 InteractionTuple IntelWeb::makeInteractionTuple(MultiMapTuple m)
@@ -358,6 +412,10 @@ InteractionTuple IntelWeb::makeInteractionTuple(MultiMapTuple m)
 	InteractionTuple i(m.key, m.value, m.context);
 	return i;
 }
+
+
+
+
 
 // assoc will contain all associations related to key
 // origins will have the original Tuples the association was made from
@@ -557,4 +615,45 @@ void IntelWeb::changePrevalenceBy(long x, std::string& input)
 	prevalences->getValue(input, v);
 	long val = stol(v);
 	prevalences->setValue(val + x, input);
+}
+
+
+
+// predicate functions
+
+bool isALessThanB_string(std::string a, std::string b)
+{
+	return (a < b);
+}
+
+bool isALessThanB(InteractionTuple a, InteractionTuple b)
+{
+	if (a.context < b.context)
+		return true;
+	else if (a.context > b.context)
+		return false;
+
+	else //a.context == b.context
+	{
+		//check froms
+		if (a.from < b.from)
+			return true;
+		else if (a.from > b.from)
+			return false;
+		else //a.from == b.from
+		{
+			//check tos
+			if (a.to < b.to)
+				return true;
+			else if (a.to > b.to)
+				return false;
+			else //a.to == b.to
+			{
+				//this means I'm comparing duplicates
+				//but I'm not supposed to have any duplicates in the vector I pass in!
+				//bad
+				exit(39);
+			}
+		}
+	}
 }
