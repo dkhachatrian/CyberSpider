@@ -339,7 +339,7 @@ bool DiskMultiMap::insert(const std::string& key, const std::string& value, cons
 
 	BinaryFile::Offset next = giveNextNodeLocation(current);
 
-	if (next != INVALID_NODE_LOCATION) //if we point to a deleted Node location
+	if (next != INVALID_NODE_LOCATION && !isNodeUsed(next)) //if we point to a deleted Node location
 	{
 		//overwrite old data in 'next'
 		BinaryFile::Offset b = next;
