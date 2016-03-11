@@ -71,7 +71,7 @@ private:
 			for (int i = 0; i < m_owner->m_buckets_iw; i++)
 			{
 				if (m_sizeOfNode == sizeof(char)) //malicious flags
-					write('0', fileLength());
+					write(IS_NOT_MALICIOUS, fileLength());
 				else if (m_sizeOfNode == sizeof(long)) //prevalences
 				{
 					long zero = 0;

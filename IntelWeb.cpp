@@ -5,13 +5,24 @@
 IntelWeb::IntelWeb()
 {
 	//set up our vector
+
+	machines = new DiskMultiMap();
+	websites = new DiskMultiMap();
+	downloads = new DiskMultiMap();
+	associations = new DiskMultiMap();
+
+
 	tables.push_back(machines);
 	tables.push_back(websites);
 	tables.push_back(downloads);
 	tables.push_back(associations);
 	
-	simples.push_back(prevalences);
-	simples.push_back(m_maliciousFlags);
+
+	prevalences = new SimpleHashTable(sizeof(long));
+	m_maliciousFlags = new SimpleHashTable(sizeof(char));
+
+	//simples.push_back(prevalences);
+	//simples.push_back(m_maliciousFlags);
 
 	m_buckets_iw = 0;
 	m_filePrefix = "";
@@ -20,6 +31,12 @@ IntelWeb::IntelWeb()
 IntelWeb::~IntelWeb()
 {
 	closeAll();
+
+	for (int i = 0; i < tables.size(); i++)
+		delete tables[i];
+
+	delete prevalences;
+	delete m_maliciousFlags;
 
 }
 
@@ -107,15 +124,15 @@ bool IntelWeb::ingest(const std::string & telemetryFile)
 		exit(10); //should have been opened...
 	}
 
-	//set up prevalences
-	// Will save as longs
-	long zero = 0;
+	////set up prevalences
+	//// Will save as longs
+	//long zero = 0;
 
-	for (int i = 0; i < m_buckets_iw; i++)
-	{
-		prevalences->write(zero, prevalences->fileLength());
-		m_maliciousFlags->write(IS_NOT_MALICIOUS, m_maliciousFlags->fileLength());
-	}
+	//for (int i = 0; i < m_buckets_iw; i++)
+	//{
+	//	prevalences->write(zero, prevalences->fileLength());
+	//	m_maliciousFlags->write(IS_NOT_MALICIOUS, m_maliciousFlags->fileLength());
+	//}
 
 
 	// now will go through and start inserting
@@ -196,11 +213,11 @@ unsigned int IntelWeb::crawl(const std::vector<std::string>& indicators,
 	std::queue<DiskMultiMap::Iterator> itrs;
 
 
-	// reset any old malicious flags 
-	// clean slate, will be entirely based on passed-in indicators
+	//// reset any old malicious flags 
+	//// clean slate, will be entirely based on passed-in indicators
 
-	if (!m_maliciousFlags->reinitialize(m_filePrefix + POSTSTRING_MALICIOUS_FLAGS))
-		exit(11);
+	////if (!m_maliciousFlags->reinitialize(m_filePrefix + POSTSTRING_MALICIOUS_FLAGS))
+	////	exit(11);
 
 
 	// set up initial queue...
