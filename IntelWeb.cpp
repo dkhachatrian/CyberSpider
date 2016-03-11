@@ -319,7 +319,7 @@ bool IntelWeb::purge(const std::string & entity)
 	KeyType k;
 
 
-	DiskMultiMap* dmm;
+	DiskMultiMap* dmm = nullptr;
 
 	if (assoc.size() != itrs.size())
 	{
@@ -354,12 +354,14 @@ bool IntelWeb::purge(const std::string & entity)
 		case download:
 			dmm = downloads;
 			break;
+		default:
+			exit(904); //how does it not associate with anything?...
 		}
 
 		//in retrieveAssociations, already checked that these 'origins' are in the hash table
 		// so just delete them
-
-		dmm->erase(m.key, m.value, m.context);
+		if(dmm != nullptr)
+			dmm->erase(m.key, m.value, m.context);
 
 		//also remove from associations
 

@@ -173,7 +173,7 @@ private:
 
 bool isALessThanB_string(std::string a, std::string b);
 
-bool isEqualToB(MultiMapTuple a, MultiMapTuple b) 
+inline bool isEqualToB(MultiMapTuple a, MultiMapTuple b) 
 {
 	return ((a.key == b.key) && (a.value == b.value) && (a.context == b.context));
 }
