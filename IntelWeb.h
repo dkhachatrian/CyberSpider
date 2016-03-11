@@ -19,6 +19,8 @@ const char IS_NOT_MALICIOUS = '0';
 enum KeyType { machine, website, download };
 
 const std::string POSTSTRING_PREVALENCES = "_prevalences_hash_table.dat";
+const std::string POSTSTRING_MALICIOUS_FLAGS = "_malicious_flags_hash_table.dat";
+
 
 const std::vector<std::string> poststrings =
 { POSTSTRING_MACHINES , POSTSTRING_WEBSITES, POSTSTRING_DOWNLOADS, POSTSTRING_ASSOCIATIONS };
@@ -57,6 +59,25 @@ private:
 		SimpleHashTable(int x)
 		{
 			m_sizeOfNode = x;
+		}
+
+		bool reinitialize(std::string filename)
+		{
+			if (isOpen())
+				close();
+			if (!createNew(filename))
+				return false;
+
+			for (int i = 0; i < m_owner->m_buckets_iw; i++)
+			{
+				if (m_sizeOfNode == sizeof(char)) //malicious flags
+					write('0', fileLength());
+				else if (m_sizeOfNode == sizeof(long)) //prevalences
+				{
+					long zero = 0;
+					write(zero, fileLength());
+				}
+			}
 		}
 
 		void getValue(const std::string & input, std::string& output)
@@ -99,6 +120,7 @@ private:
 
 	private:
 		Offset m_sizeOfNode;
+		long m_numBuckets;
 		IntelWeb* m_owner;
 	};
 
@@ -111,6 +133,7 @@ private:
 
 	std::vector<DiskMultiMap*> tables;
 	long m_buckets_iw;
+	std::string m_filePrefix;
 	//int expectedNumber;
 
 	void closeAll();

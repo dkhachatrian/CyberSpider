@@ -14,7 +14,7 @@ IntelWeb::IntelWeb()
 	simples.push_back(m_maliciousFlags);
 
 	m_buckets_iw = 0;
-
+	m_filePrefix = "";
 }
 
 IntelWeb::~IntelWeb()
@@ -26,6 +26,7 @@ IntelWeb::~IntelWeb()
 bool IntelWeb::createNew(const std::string & filePrefix, unsigned int maxDataItems)
 {
 	closeAll();
+	m_filePrefix = filePrefix;
 
 	bool result = createNewAll(filePrefix, maxDataItems);
 
@@ -40,6 +41,7 @@ bool IntelWeb::createNew(const std::string & filePrefix, unsigned int maxDataIte
 bool IntelWeb::openExisting(const std::string & filePrefix)
 {
 	closeAll();
+	m_filePrefix = filePrefix;
 
 	bool result = openExistingAll(filePrefix);
 
@@ -93,7 +95,12 @@ bool IntelWeb::ingest(const std::string & telemetryFile)
 	}
 
 	// now we have the maximum possible number of buckets 'prevalences' could need
-	// set up prevalences
+	// set up prevalences and malicious flags
+
+	if (!prevalences->reinitialize(m_filePrefix + POSTSTRING_PREVALENCES))
+		exit(10);
+	if (!m_maliciousFlags->reinitialize(m_filePrefix + POSTSTRING_MALICIOUS_FLAGS))
+		exit(11);
 
 	if (!prevalences->isOpen())
 	{
@@ -187,6 +194,14 @@ unsigned int IntelWeb::crawl(const std::vector<std::string>& indicators,
 	std::queue<MultiMapTuple> toBeChecked;
 	std::queue<MultiMapTuple> origins;
 	std::queue<DiskMultiMap::Iterator> itrs;
+
+
+	// reset any old malicious flags 
+	// clean slate, will be entirely based on passed-in indicators
+
+	if (!m_maliciousFlags->reinitialize(m_filePrefix + POSTSTRING_MALICIOUS_FLAGS))
+		exit(11);
+
 
 	// set up initial queue...
 	for (int i = 0; i < indicators.size(); i++)
@@ -515,7 +530,12 @@ bool IntelWeb::createNewAll(std::string filePrefix, int maxDataItems)
 			result = false;
 	}
 
-	if (!prevalences->createNew(filePrefix + POSTSTRING_PREVALENCES))
+
+
+	if (!prevalences->reinitialize(filePrefix + POSTSTRING_PREVALENCES))
+		result = false;
+
+	if (!m_maliciousFlags->reinitialize(filePrefix + POSTSTRING_PREVALENCES))
 		result = false;
 
 	return result;
