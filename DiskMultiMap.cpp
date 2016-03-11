@@ -491,7 +491,21 @@ int DiskMultiMap::erase(const std::string& key, const std::string& value, const 
 			else
 				exit(5); //I messed up...
 		}
+		else // entire thing is gone. Move bottom-most "collided" key up to slot
+		{
+			current = head;
+			while (isNodeUsed(current + NODE_FILE_SIZE))
+				current += NODE_FILE_SIZE;
+			//now at last collided key-map start
+			if (head != current) //if it's actually a different spot
+			{
+				//copy over Node
+				copyNode(current, head);
 
+				//free up non-head spot, since it got copied over
+				setUsedFlag(false, current);
+			}
+		}
 		//otherwise, we have an empty linked list
 		// everything after the head either used to be valid and is now invalid
 		// or was already invalid
