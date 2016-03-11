@@ -301,6 +301,35 @@ bool DiskMultiMap::insert(const std::string& key, const std::string& value, cons
 		return true;
 	}
 	
+	//  deal with collisions
+	//
+
+	std::string headKey = giveTupleElement(FIRST, current);
+	int i = 0;
+
+	//if collision, go down nodes until one is empty
+	for (i = 0; i < m_numBuckets; i++)
+	{
+		if(!isNodeUsed(current))
+		{
+			writeTupleInNode(current, key, value, context);
+			return true;
+		}
+		else if (headKey != key)
+		{
+			current += NODE_FILE_SIZE; //shift to next Node
+			headKey = giveTupleElement(FIRST, current);
+		}
+		else //found matching key in valid Node at 'head'
+			break;
+		
+	}
+
+	//if full, can't insert
+	if (i == m_numBuckets)
+		return false;
+
+
 	while (!isTerminalNode(current)) //while we're not at the terminal Node
 	{
 		current = giveNextNodeLocation(current);

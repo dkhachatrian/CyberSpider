@@ -20,7 +20,7 @@ enum KeyType { machine, website, download };
 
 const std::string POSTSTRING_PREVALENCES = "_prevalences_hash_table.dat";
 
-std::vector<std::string> poststrings =
+const std::vector<std::string> poststrings =
 { POSTSTRING_MACHINES , POSTSTRING_WEBSITES, POSTSTRING_DOWNLOADS, POSTSTRING_ASSOCIATIONS };
 
 
