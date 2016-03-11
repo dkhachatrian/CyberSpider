@@ -479,17 +479,25 @@ int DiskMultiMap::erase(const std::string& key, const std::string& value, const 
 		}
 		else // entire thing is gone. Move bottom-most "collided" key up to slot
 		{
-			current = head;
-			while (isNodeUsed(current + NODE_FILE_SIZE))
-				current += NODE_FILE_SIZE;
+			BinaryFile::Offset temp = head;
+			int hash2 = hash(giveTupleElement(FIRST, temp + NODE_FILE_SIZE));
+
+			while (isNodeUsed(temp + NODE_FILE_SIZE) && hash2 == hashed)
+			{
+				temp += NODE_FILE_SIZE;
+				hash2 = hash(giveTupleElement(FIRST, temp + NODE_FILE_SIZE));
+			}
+
+
 			//now at last collided key-map start
-			if (head != current) //if it's actually a different spot
+			if (hash2 == hashed && head != temp) //if it's actually a different spot, and matches
 			{
 				//copy over Node
-				copyNode(current, head);
+				copyNode(temp, head);
 
 				//free up non-head spot, since it got copied over
-				setUsedFlag(false, current);
+				setUsedFlag(false, temp);
+				erased.push(temp);
 			}
 		}
 		//otherwise, we have an empty linked list
