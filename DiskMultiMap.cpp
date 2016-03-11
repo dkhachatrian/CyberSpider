@@ -353,7 +353,13 @@ bool DiskMultiMap::insert(const std::string& key, const std::string& value, cons
 	{
 		BinaryFile::Offset b = m_hash.fileLength();
 		setNextTo(b, current); //have current point to new Node
-		writeTupleInNode(b, key, value, context);
+
+		for (int i = 0; i < NODE_FILE_SIZE; i++)
+			m_hash.write('\0', m_hash.fileLength()); //make space
+
+		writeTupleInNode(b, key, value, context); //write in Tuple
+
+		setNextTo(INVALID_NODE_LOCATION, b); //have newest one point to invalid location
 
 		return true;
 	}
